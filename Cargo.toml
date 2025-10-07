@@ -13,3 +13,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = { version = "0.3", features = ["sink"] }
 uuid = { version = "1.0", features = ["v4"] }
 itertools = "0.13"
+anyhow = "1.0"

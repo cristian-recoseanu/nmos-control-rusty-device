@@ -1,21 +1,15 @@
 use axum::{
-    extract::{
-        ws::{Message},
-        Path, State,
-    },
+    extract::{Path, State, ws::Message},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get},
+    routing::get,
     Json, Router,
 };
 use serde_json::json;
-use std::{sync::{Arc, Mutex}};
+use std::{collections::HashMap, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
-use tokio::sync::{RwLock, mpsc};
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 // Declare modules
 mod data_types;
@@ -23,64 +17,58 @@ mod nc_object;
 mod nc_block;
 mod websocket;
 
-// Import from modules
-use data_types::*;
-use nc_object::*;
-use nc_block::*;
-use websocket::*;
+// Imports
+use crate::{
+    data_types::{DeviceControl, NmosDevice, PropertyChangedEvent},
+    nc_block::NcBlock,
+    nc_object::NcObject,
+    websocket::{websocket_handler, run_event_loop},
+};
 
-// A shared state for our application
-struct AppState {
-    connections: RwLock<HashMap<Uuid, ConnectionState>>,
-    device: NmosDevice,
-    event_rx: RwLock<mpsc::UnboundedReceiver<PropertyChangedEvent>>,
-    root_block: Mutex<NcBlock>
+// === AppState ===
+
+pub struct AppState {
+    pub connections: RwLock<HashMap<Uuid, ConnectionState>>,
+    pub device: NmosDevice,
+    pub root_block: Mutex<NcBlock>,
+    pub event_rx: Mutex<mpsc::UnboundedReceiver<PropertyChangedEvent>>,
 }
 
-/// Holds the WebSocket connection state including subscriptions and the sender for notifications
+/// Each WebSocket connection’s state
 #[derive(Debug)]
-struct ConnectionState {
-    subscribed_oids: HashSet<u64>,
-    sender: mpsc::UnboundedSender<Message>
+pub struct ConnectionState {
+    pub subscribed_oids: std::collections::HashSet<u64>,
+    pub sender: mpsc::UnboundedSender<Message>,
 }
 
 impl AppState {
-    /// Means of notifying subscribers if the oid is contained in their subscriptions list
-    async fn notify_subscribers(&self, event_data: PropertyChangedEvent) {
+    /// Broadcasts a property change to all subscribed clients.
+    pub async fn notify_subscribers(&self, event_data: PropertyChangedEvent) {
         let conns = self.connections.read().await;
+        let payload = serde_json::to_string(&crate::data_types::WsNotificationMessage {
+            message_type: crate::data_types::MESSAGE_TYPE_NOTIFICATION,
+            notifications: vec![event_data.clone()],
+        }).unwrap();
 
         for conn in conns.values() {
             if conn.subscribed_oids.contains(&event_data.oid) {
-                let response = WsNotificationMessage {
-                    message_type: MESSAGE_TYPE_NOTIFICATION,
-                    notifications: vec![event_data.clone()]
-                };
-                if let Ok(resp_text) = serde_json::to_string(&response) {
-                    let _ = conn.sender.send(Message::Text(resp_text));
-                }
+                let _ = conn.sender.send(Message::Text(payload.clone()));
             }
         }
     }
 }
 
-/// Returns a TAI timestamp in the format "<seconds>:<nanoseconds>"
+/// Returns a TAI timestamp in `<seconds>:<nanoseconds>` format.
 pub fn tai_timestamp() -> String {
-    let now = SystemTime::now();
-    let since_epoch = now.duration_since(UNIX_EPOCH)
-        .expect("System time is before Unix epoch");
-
-    let seconds = since_epoch.as_secs();
-    let nanos = since_epoch.subsec_nanos();
-
-    // Current TAI–UTC offset is +37s
-    let tai_seconds = seconds + 37;
-
-    format!("{}:{}", tai_seconds, nanos)
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("System time before Unix epoch");
+    format!("{}:{}", now.as_secs() + 37, now.subsec_nanos())
 }
 
 #[tokio::main]
-async fn main() {
-    // Set up logging
+async fn main() -> anyhow::Result<()> {
+    // Logging setup
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -89,82 +77,67 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    // Create a minimal NmosDevice so we can advertise the IS-12 control
+    // Create device
     let device = NmosDevice {
-        id: "67c25159-ce25-4000-a66c-f31fff890265".to_string(), //Fixed for easy persistence, replace with for generated uuid: Uuid::new_v4().to_string(),
-        label: "Example Device".to_string(),
-        description: "An example NMOS device".to_string(),
+        id: "67c25159-ce25-4000-a66c-f31fff890265".into(), //Use: Uuid::new_v4().to_string() to generate new uuid
+        label: "Example Device".into(),
+        description: "An example NMOS device".into(),
         senders: vec![],
         receivers: vec![],
         node_id: Uuid::new_v4().to_string(),
-        type_: "urn:x-nmos:device:generic".to_string(),
+        type_: "urn:x-nmos:device:generic".into(),
         version: tai_timestamp(),
-        controls: vec![
-            DeviceControl {
-                type_: "urn:x-nmos:control:ncp/v1.0".to_string(),
-                href: "ws://127.0.0.1:3000/ws".to_string(),
-                authorization: false
-            }
-        ]
+        controls: vec![DeviceControl {
+            type_: "urn:x-nmos:control:ncp/v1.0".into(),
+            href: "ws://127.0.0.1:3000/ws".into(),
+            authorization: false,
+        }],
     };
 
-    println!("Device ID: {}", device.id);
-
-    // Create a channel where our device model objects can notify
+    // Model setup
     let (tx, rx) = mpsc::unbounded_channel::<PropertyChangedEvent>();
 
-    let mut root_block = NcBlock::new(true, vec![1, 1], 1, true, None,"root", None, true, tx.clone());
-    
+    // Create the root block
+    let mut root = NcBlock::new(true, vec![1, 1], 1, true, None, "root", None, true, tx.clone());
+
+    // Add NcObject member
     let obj_1 = NcObject::new(vec![1], 2, true, Some(1), "test", Some("test"), tx.clone());
-    
-    root_block.add_member(obj_1);
+    root.add_member(Box::new(obj_1));
+
+    // Add NcBlock member
+    let mut block_1 = NcBlock::new(false, vec![1, 1], 3, true, None, "child_block", None, true, tx.clone());
+    let obj_2 = NcObject::new(vec![1], 4, true, Some(1), "child_block_member", Some("Child"), tx.clone());
+    block_1.add_member(Box::new(obj_2));
+    root.add_member(Box::new(block_1));
 
     let app_state = Arc::new(AppState {
-        device, 
-        root_block: Mutex::new(root_block),
+        device,
         connections: RwLock::new(HashMap::new()),
-        event_rx: RwLock::new(rx)
+        root_block: Mutex::new(root),
+        event_rx: Mutex::new(rx),
     });
 
+    // Event loop background task
     tokio::spawn(run_event_loop(app_state.clone()));
 
-    // Build our web application with the routes
+    // Routes
     let app = Router::new()
-        .route("/x-nmos/node/v1.3/devices/", get(devices_rest_api_handler)) // REST API endpoint for all devices
-        .route("/x-nmos/node/v1.3/devices/:id", get(device_rest_api_handler)) // REST API endpoint for specific device
-        .route("/ws", get(websocket_handler)) // WebSocket endpoint
+        .route("/x-nmos/node/v1.3/devices/", get(devices_rest_api_handler))
+        .route("/x-nmos/node/v1.3/devices/:id", get(device_rest_api_handler))
+        .route("/ws", get(websocket_handler))
         .with_state(app_state);
 
-    // Run the server
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
-    tracing::debug!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    // Start server
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    tracing::info!("listening on {}", listener.local_addr()?);
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
-// Run event loop to funnel any events received from device model objects to subscribes via notifications
-async fn run_event_loop(state: Arc<AppState>) {
-    loop {
-        let maybe_event = {
-            let mut rx = state.event_rx.write().await;
-            rx.recv().await
-        };
-
-        if let Some(event_data   ) = maybe_event {
-            state.notify_subscribers(event_data).await;
-        } else {
-            break; // channel closed, exit
-        }
-    }
-}
-
-// --- REST API Handler ---
+// --- REST Handlers ---
 
 async fn devices_rest_api_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let mut response = Vec::new();
-    response.push(state.device.clone());
-    (StatusCode::OK, Json(json!(response)))
+    (StatusCode::OK, Json(json!([state.device])))
 }
 
 async fn device_rest_api_handler(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> impl IntoResponse {
