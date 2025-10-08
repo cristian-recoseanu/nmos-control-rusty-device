@@ -1,13 +1,12 @@
-use itertools::Itertools;
-use serde_json::{json, Value};
-use tokio::sync::mpsc;
-use std::any::Any;
-
-use crate::nc_object::{NcObject, NcMember};
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcPropertyChangeType, PropertyChangedEvent,
-    PropertyChangedEventData, NcBlockMemberDescriptor,
+    ElementId, IdArgs, IdArgsValue, NcBlockMemberDescriptor, NcPropertyChangeType,
+    PropertyChangedEvent, PropertyChangedEventData,
 };
+use crate::nc_object::{NcMember, NcObject};
+use itertools::Itertools;
+use serde_json::{Value, json};
+use std::any::Any;
+use tokio::sync::mpsc;
 
 pub struct NcBlock {
     pub base: NcObject,
@@ -95,6 +94,7 @@ impl NcMember for NcBlock {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 impl NcBlock {
     pub fn new(
         is_root: bool,
@@ -108,7 +108,15 @@ impl NcBlock {
         notifier: mpsc::UnboundedSender<PropertyChangedEvent>,
     ) -> Self {
         NcBlock {
-            base: NcObject::new(class_id, oid, constant_oid, owner, role, user_label, notifier),
+            base: NcObject::new(
+                class_id,
+                oid,
+                constant_oid,
+                owner,
+                role,
+                user_label,
+                notifier,
+            ),
             is_root,
             enabled,
             members: Vec::new(),
@@ -136,12 +144,11 @@ impl NcBlock {
             if member.get_oid() == oid {
                 return Some(member.as_ref());
             }
-            if member.member_type() == "NcBlock" {
-                if let Some(block) = member.as_any().downcast_ref::<NcBlock>() {
-                    if let Some(found) = block.find_member(oid) {
-                        return Some(found);
-                    }
-                }
+            if member.member_type() == "NcBlock"
+                && let Some(block) = member.as_any().downcast_ref::<NcBlock>()
+                && let Some(found) = block.find_member(oid)
+            {
+                return Some(found);
             }
         }
         None
@@ -152,12 +159,11 @@ impl NcBlock {
             if member.get_oid() == oid {
                 return Some(member.as_mut());
             }
-            if member.member_type() == "NcBlock" {
-                if let Some(block) = member.as_any_mut().downcast_mut::<NcBlock>() {
-                    if let Some(found) = block.find_member_mut(oid) {
-                        return Some(found);
-                    }
-                }
+            if member.member_type() == "NcBlock"
+                && let Some(block) = member.as_any_mut().downcast_mut::<NcBlock>()
+                && let Some(found) = block.find_member_mut(oid)
+            {
+                return Some(found);
             }
         }
         None
@@ -178,12 +184,17 @@ impl NcBlock {
     }
 
     pub fn find_members_by_class_id(&self, args: Value) -> Vec<NcBlockMemberDescriptor> {
-        let class_id: Option<Vec<u32>> = args
-            .get("classId")
-            .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_u64().map(|x| x as u32)).collect());
+        let class_id: Option<Vec<u32>> =
+            args.get("classId").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_u64().map(|x| x as u32))
+                    .collect()
+            });
 
-        let recurse = args.get("recurse").and_then(|v| v.as_bool()).unwrap_or(false);
+        let recurse = args
+            .get("recurse")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let include_derived = args
             .get("includeDerived")
             .and_then(|v| v.as_bool())

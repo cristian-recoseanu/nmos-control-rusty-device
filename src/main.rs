@@ -1,20 +1,24 @@
 use axum::{
+    Json, Router,
     extract::{Path, State, ws::Message},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
 use serde_json::json;
-use std::{collections::HashMap, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
 
 // Declare modules
 mod data_types;
-mod nc_object;
 mod nc_block;
+mod nc_object;
 mod websocket;
 
 // Imports
@@ -22,7 +26,7 @@ use crate::{
     data_types::{DeviceControl, NmosDevice, PropertyChangedEvent},
     nc_block::NcBlock,
     nc_object::NcObject,
-    websocket::{websocket_handler, run_event_loop},
+    websocket::{run_event_loop, websocket_handler},
 };
 
 // === AppState ===
@@ -48,7 +52,8 @@ impl AppState {
         let payload = serde_json::to_string(&crate::data_types::WsNotificationMessage {
             message_type: crate::data_types::MESSAGE_TYPE_NOTIFICATION,
             notifications: vec![event_data.clone()],
-        }).unwrap();
+        })
+        .unwrap();
 
         for conn in conns.values() {
             if conn.subscribed_oids.contains(&event_data.oid) {
@@ -98,15 +103,43 @@ async fn main() -> anyhow::Result<()> {
     let (tx, rx) = mpsc::unbounded_channel::<PropertyChangedEvent>();
 
     // Create the root block
-    let mut root = NcBlock::new(true, vec![1, 1], 1, true, None, "root", None, true, tx.clone());
+    let mut root = NcBlock::new(
+        true,
+        vec![1, 1],
+        1,
+        true,
+        None,
+        "root",
+        None,
+        true,
+        tx.clone(),
+    );
 
     // Add NcObject member
     let obj_1 = NcObject::new(vec![1], 2, true, Some(1), "test", Some("test"), tx.clone());
     root.add_member(Box::new(obj_1));
 
     // Add NcBlock member
-    let mut block_1 = NcBlock::new(false, vec![1, 1], 3, true, None, "child_block", None, true, tx.clone());
-    let obj_2 = NcObject::new(vec![1], 4, true, Some(1), "child_block_member", Some("Child"), tx.clone());
+    let mut block_1 = NcBlock::new(
+        false,
+        vec![1, 1],
+        3,
+        true,
+        None,
+        "child_block",
+        None,
+        true,
+        tx.clone(),
+    );
+    let obj_2 = NcObject::new(
+        vec![1],
+        4,
+        true,
+        Some(1),
+        "child_block_member",
+        Some("Child"),
+        tx.clone(),
+    );
     block_1.add_member(Box::new(obj_2));
     root.add_member(Box::new(block_1));
 
@@ -123,7 +156,10 @@ async fn main() -> anyhow::Result<()> {
     // Routes
     let app = Router::new()
         .route("/x-nmos/node/v1.3/devices/", get(devices_rest_api_handler))
-        .route("/x-nmos/node/v1.3/devices/:id", get(device_rest_api_handler))
+        .route(
+            "/x-nmos/node/v1.3/devices/:id",
+            get(device_rest_api_handler),
+        )
         .route("/ws", get(websocket_handler))
         .with_state(app_state);
 
@@ -140,10 +176,16 @@ async fn devices_rest_api_handler(State(state): State<Arc<AppState>>) -> impl In
     (StatusCode::OK, Json(json!([state.device])))
 }
 
-async fn device_rest_api_handler(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> impl IntoResponse {
+async fn device_rest_api_handler(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
     if state.device.id == id {
         (StatusCode::OK, Json(json!(state.device)))
     } else {
-        (StatusCode::NOT_FOUND, Json(json!({ "error": "device not found" })))
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "device not found" })),
+        )
     }
 }

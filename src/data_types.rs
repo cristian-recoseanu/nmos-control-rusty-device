@@ -13,7 +13,7 @@ pub struct DeviceControl {
     #[serde(rename = "type")]
     pub type_: String,
     pub href: String,
-    pub authorization: bool
+    pub authorization: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -27,13 +27,13 @@ pub struct NmosDevice {
     #[serde(rename = "type")]
     pub type_: String,
     pub version: String,
-    pub controls: Vec<DeviceControl>
+    pub controls: Vec<DeviceControl>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ElementId {
     pub level: u32,
-    pub index: u32
+    pub index: u32,
 }
 
 #[derive(Deserialize, Debug)]
@@ -42,7 +42,7 @@ pub struct Command {
     pub oid: u64,
     #[serde(rename = "methodId")]
     pub method_id: ElementId,
-    pub arguments: Value
+    pub arguments: Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -53,14 +53,14 @@ pub struct IdArgs {
 #[derive(Deserialize, Debug)]
 pub struct IdArgsValue {
     pub id: ElementId,
-    pub value: Value
+    pub value: Value,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct WsCommandMessage {
     pub commands: Vec<Command>,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -68,20 +68,20 @@ pub struct ResponseResult {
     pub status: u64,
     pub value: Value,
     #[serde(rename = "errorMessage")]
-    pub error_message: Option<String>
+    pub error_message: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
 pub struct Response {
     pub handle: u64,
-    pub result: ResponseResult
+    pub result: ResponseResult,
 }
 
 #[derive(Serialize, Debug)]
 pub struct WsCommandResponseMessage {
     pub responses: Vec<Response>,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -90,21 +90,21 @@ pub struct WsErrorMessage {
     #[serde(rename = "errorMessage")]
     pub error_message: String,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct WsSubscriptionMessage {
     pub subscriptions: Vec<u64>,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Serialize, Debug)]
 pub struct WsSubscriptionResponseMessage {
     pub subscriptions: Vec<u64>,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -112,7 +112,7 @@ pub enum NcPropertyChangeType {
     ValueChanged = 0,
     SequenceItemAdded = 1,
     SequenceItemChanged = 2,
-    SequenceItemRemoved = 3
+    SequenceItemRemoved = 3,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -123,7 +123,7 @@ pub struct PropertyChangedEventData {
     pub change_type: NcPropertyChangeType,
     pub value: Value,
     #[serde(rename = "sequenceItemIndex")]
-    pub sequence_item_index: Option<u64>
+    pub sequence_item_index: Option<u64>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -132,7 +132,7 @@ pub struct PropertyChangedEvent {
     #[serde(rename = "eventId")]
     pub event_id_: ElementId,
     #[serde(rename = "eventData")]
-    pub event_data: PropertyChangedEventData
+    pub event_data: PropertyChangedEventData,
 }
 
 impl PropertyChangedEvent {
@@ -140,7 +140,7 @@ impl PropertyChangedEvent {
         PropertyChangedEvent {
             oid,
             event_id_: ElementId { level: 1, index: 1 },
-            event_data: event_data,
+            event_data,
         }
     }
 }
@@ -149,7 +149,7 @@ impl PropertyChangedEvent {
 pub struct WsNotificationMessage {
     pub notifications: Vec<PropertyChangedEvent>,
     #[serde(rename = "messageType")]
-    pub message_type: u16
+    pub message_type: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -162,5 +162,5 @@ pub struct NcBlockMemberDescriptor {
     pub class_id: Vec<u32>,
     #[serde(rename = "userLabel")]
     pub user_label: String,
-    pub owner: u64
+    pub owner: u64,
 }
