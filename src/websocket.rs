@@ -1,4 +1,4 @@
-use axum::extract::{ws::*, State};
+use axum::extract::{State, ws::*};
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{from_value, json};
@@ -6,14 +6,13 @@ use std::{collections::HashSet, sync::Arc};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::{
-    AppState, ConnectionState,
-    data_types::*,
-    nc_object::NcMember,
-};
+use crate::{AppState, ConnectionState, data_types::*, nc_object::NcMember};
 
 /// WebSocket entrypoint
-pub async fn websocket_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn websocket_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
     let conn_id = Uuid::new_v4();
     ws.on_upgrade(move |socket| handle_socket(socket, state, conn_id))
 }
@@ -49,13 +48,21 @@ async fn process_command(msg: WsCommandMessage, state: Arc<AppState>) -> WsComma
             },
             _ => {
                 let (err, resp) = root.invoke_method(cmd.oid, cmd.method_id, cmd.arguments);
-                (if err.is_some() { 400 } else { 200 }, err, resp.unwrap_or(json!(null)))
+                (
+                    if err.is_some() { 400 } else { 200 },
+                    err,
+                    resp.unwrap_or(json!(null)),
+                )
             }
         };
 
         responses.push(Response {
             handle: cmd.handle,
-            result: ResponseResult { status, error_message, value },
+            result: ResponseResult {
+                status,
+                error_message,
+                value,
+            },
         });
     }
 
@@ -82,7 +89,13 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
     // Register connection
     {
         let mut conns = state.connections.write().await;
-        conns.insert(conn_id, ConnectionState { subscribed_oids: HashSet::new(), sender: tx.clone() });
+        conns.insert(
+            conn_id,
+            ConnectionState {
+                subscribed_oids: HashSet::new(),
+                sender: tx.clone(),
+            },
+        );
     }
 
     let state_c = state.clone();
@@ -92,32 +105,32 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
         while let Some(Ok(msg)) = receiver.next().await {
             if let Message::Text(text) = msg {
                 // Try command
-                if let Ok(cmd) = serde_json::from_str::<WsCommandMessage>(&text) {
-                    if cmd.message_type == MESSAGE_TYPE_COMMAND {
-                        let response = process_command(cmd, state_c.clone()).await;
-                        if let Ok(txt) = serde_json::to_string(&response) {
-                            let _ = tx_c.send(Message::Text(txt));
-                        }
-                        continue;
+                if let Ok(cmd) = serde_json::from_str::<WsCommandMessage>(&text)
+                    && cmd.message_type == MESSAGE_TYPE_COMMAND
+                {
+                    let response = process_command(cmd, state_c.clone()).await;
+                    if let Ok(txt) = serde_json::to_string(&response) {
+                        let _ = tx_c.send(Message::Text(txt));
                     }
+                    continue;
                 }
 
                 // Try subscription
-                if let Ok(sub) = serde_json::from_str::<WsSubscriptionMessage>(&text) {
-                    if sub.message_type == MESSAGE_TYPE_SUBSCRIPTION {
-                        let mut conns = state_c.connections.write().await;
-                        if let Some(c) = conns.get_mut(&conn_id) {
-                            c.subscribed_oids = sub.subscriptions.iter().cloned().collect();
-                        }
-                        let resp = WsSubscriptionResponseMessage {
-                            message_type: MESSAGE_TYPE_SUBSCRIPTION_RESPONSE,
-                            subscriptions: sub.subscriptions,
-                        };
-                        if let Ok(txt) = serde_json::to_string(&resp) {
-                            let _ = tx_c.send(Message::Text(txt));
-                        }
-                        continue;
+                if let Ok(sub) = serde_json::from_str::<WsSubscriptionMessage>(&text)
+                    && sub.message_type == MESSAGE_TYPE_SUBSCRIPTION
+                {
+                    let mut conns = state_c.connections.write().await;
+                    if let Some(c) = conns.get_mut(&conn_id) {
+                        c.subscribed_oids = sub.subscriptions.iter().cloned().collect();
                     }
+                    let resp = WsSubscriptionResponseMessage {
+                        message_type: MESSAGE_TYPE_SUBSCRIPTION_RESPONSE,
+                        subscriptions: sub.subscriptions,
+                    };
+                    if let Ok(txt) = serde_json::to_string(&resp) {
+                        let _ = tx_c.send(Message::Text(txt));
+                    }
+                    continue;
                 }
 
                 // Otherwise, error
@@ -126,7 +139,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                         message_type: MESSAGE_TYPE_ERROR,
                         status: 400,
                         error_message: "Invalid message".into(),
-                    }).unwrap(),
+                    })
+                    .unwrap(),
                 ));
             }
         }
