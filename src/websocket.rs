@@ -110,7 +110,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                 {
                     let response = process_command(cmd, state_c.clone()).await;
                     if let Ok(txt) = serde_json::to_string(&response) {
-                        let _ = tx_c.send(Message::Text(txt));
+                        let _ = tx_c.send(Message::Text(txt.into()));
                     }
                     continue;
                 }
@@ -128,7 +128,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                         subscriptions: sub.subscriptions,
                     };
                     if let Ok(txt) = serde_json::to_string(&resp) {
-                        let _ = tx_c.send(Message::Text(txt));
+                        let _ = tx_c.send(Message::Text(txt.into()));
                     }
                     continue;
                 }
@@ -140,7 +140,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                         status: 400,
                         error_message: "Invalid message".into(),
                     })
-                    .unwrap(),
+                    .unwrap()
+                    .into(),
                 ));
             }
         }
