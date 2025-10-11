@@ -105,7 +105,7 @@ impl NcMember for NcObject {
         _args: Value,
     ) -> (Option<String>, Option<Value>) {
         //TODO: This is where we can add treatment for other methods in NcObject
-        (Some("Could not find the property".to_string()), None)
+        (Some("Methods not yet implemented".to_string()), None)
     }
 }
 
