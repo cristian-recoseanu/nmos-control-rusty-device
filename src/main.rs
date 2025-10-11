@@ -57,7 +57,7 @@ impl AppState {
 
         for conn in conns.values() {
             if conn.subscribed_oids.contains(&event_data.oid) {
-                let _ = conn.sender.send(Message::Text(payload.clone()));
+                let _ = conn.sender.send(Message::Text(payload.clone().into()));
             }
         }
     }
@@ -157,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/x-nmos/node/v1.3/devices/", get(devices_rest_api_handler))
         .route(
-            "/x-nmos/node/v1.3/devices/:id",
+            "/x-nmos/node/v1.3/devices/{id}",
             get(device_rest_api_handler),
         )
         .route("/ws", get(websocket_handler))
