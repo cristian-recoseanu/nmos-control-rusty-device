@@ -83,8 +83,10 @@ impl NcMember for NcBlock {
     ) -> (Option<String>, Option<Value>) {
         if oid == self.base.oid {
             match (method_id.level, method_id.index) {
-                (2, 1) => (None, Some(json!(self.get_member_descriptors(args)))), //2m1
-                (2, 4) => (None, Some(json!(self.find_members_by_class_id(args)))), //2m4
+                (2, 1) => (None, Some(json!(self.get_member_descriptors(args)))), // 2m1
+                (2, 2) => (None, Some(json!(self.find_members_by_path(args)))),   // 2m2
+                (2, 3) => (None, Some(json!(self.find_members_by_role(args)))),   // 2m3
+                (2, 4) => (None, Some(json!(self.find_members_by_class_id(args)))), // 2m4
                 _ => self.base.invoke_method(oid, method_id, args),
             }
         } else if let Some(member) = self.find_member(oid) {
@@ -211,6 +213,120 @@ impl NcBlock {
             for member in &self.members {
                 if let Some(block) = member.as_any().downcast_ref::<NcBlock>() {
                     results.extend(block.get_member_descriptors(args.clone()));
+                }
+            }
+        }
+
+        results
+    }
+
+    pub fn find_members_by_path(&self, args: Value) -> Vec<NcBlockMemberDescriptor> {
+        let Some(path_array) = args.get("path").and_then(|v| v.as_array()) else {
+            return Vec::new();
+        };
+
+        let segments: Vec<String> = path_array
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.trim().to_string()))
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        if segments.is_empty() {
+            return Vec::new();
+        }
+
+        self.find_members_by_path_recursive(&segments)
+    }
+
+    fn find_members_by_path_recursive(&self, segments: &[String]) -> Vec<NcBlockMemberDescriptor> {
+        if segments.is_empty() {
+            return Vec::new();
+        }
+
+        let first = &segments[0];
+        let rest = &segments[1..];
+
+        let mut results = Vec::new();
+
+        for member in &self.members {
+            if member.get_role() == first {
+                if rest.is_empty() {
+                    // Last segment → found match
+                    results.push(NcBlock::make_member_descriptor(
+                        member.as_ref(),
+                        self.base.oid,
+                    ));
+                } else if let Some(block) = member.as_any().downcast_ref::<NcBlock>() {
+                    // Recurse into nested NcBlock
+                    results.extend(block.find_members_by_path_recursive(rest));
+                }
+            }
+        }
+
+        results
+    }
+
+    pub fn find_members_by_role(&self, args: Value) -> Vec<NcBlockMemberDescriptor> {
+        let role = args
+            .get("role")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        if role.is_empty() {
+            return Vec::new();
+        }
+
+        let case_sensitive = args
+            .get("caseSensitive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let match_whole = args
+            .get("matchWholeString")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let recurse = args
+            .get("recurse")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // Prepare normalized role if not case-sensitive
+        let search_role = if case_sensitive {
+            role.clone()
+        } else {
+            role.to_lowercase()
+        };
+
+        // Closure for matching logic
+        let matches_role = |r: &str| {
+            if case_sensitive {
+                if match_whole {
+                    r == role
+                } else {
+                    r.contains(&role)
+                }
+            } else {
+                let r_lower = r.to_lowercase();
+                if match_whole {
+                    r_lower == search_role
+                } else {
+                    r_lower.contains(&search_role)
+                }
+            }
+        };
+
+        let mut results: Vec<_> = self
+            .members
+            .iter()
+            .filter(|m| matches_role(m.get_role()))
+            .map(|m| NcBlock::make_member_descriptor(m.as_ref(), self.base.oid))
+            .collect();
+
+        if recurse {
+            for member in &self.members {
+                if let Some(block) = member.as_any().downcast_ref::<NcBlock>() {
+                    results.extend(block.find_members_by_role(args.clone()));
                 }
             }
         }
