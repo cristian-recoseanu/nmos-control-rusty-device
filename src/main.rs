@@ -116,7 +116,15 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Add NcObject member
-    let obj_1 = NcObject::new(vec![1], 2, true, Some(1), "test", Some("test"), tx.clone());
+    let obj_1 = NcObject::new(
+        vec![1],
+        2,
+        true,
+        Some(1),
+        "my-obj-01",
+        Some("My object 01"),
+        tx.clone(),
+    );
     root.add_member(Box::new(obj_1));
 
     // Add NcBlock member
@@ -126,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
         3,
         true,
         None,
-        "child_block",
+        "my-block-01",
         None,
         true,
         tx.clone(),
@@ -136,8 +144,8 @@ async fn main() -> anyhow::Result<()> {
         4,
         true,
         Some(1),
-        "child_block_member",
-        Some("Child"),
+        "my-nested-block-obj",
+        None,
         tx.clone(),
     );
     block_1.add_member(Box::new(obj_2));
