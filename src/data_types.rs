@@ -108,11 +108,31 @@ pub struct WsSubscriptionResponseMessage {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(into = "u32", try_from = "u32")]
+#[repr(u32)]
 pub enum NcPropertyChangeType {
     ValueChanged = 0,
     SequenceItemAdded = 1,
     SequenceItemChanged = 2,
     SequenceItemRemoved = 3,
+}
+
+impl From<NcPropertyChangeType> for u32 {
+    fn from(change_type: NcPropertyChangeType) -> Self {
+        change_type as u32
+    }
+}
+
+impl From<u32> for NcPropertyChangeType {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => NcPropertyChangeType::ValueChanged,
+            1 => NcPropertyChangeType::SequenceItemAdded,
+            2 => NcPropertyChangeType::SequenceItemChanged,
+            3 => NcPropertyChangeType::SequenceItemRemoved,
+            _ => NcPropertyChangeType::ValueChanged,
+        }
+    }
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -163,4 +183,95 @@ pub struct NcBlockMemberDescriptor {
     #[serde(rename = "userLabel")]
     pub user_label: String,
     pub owner: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcManufacturer {
+    pub name: String,
+    #[serde(rename = "organizationId")]
+    pub organization_id: Option<i32>,
+    pub website: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcProduct {
+    pub name: String,
+    pub key: String,
+    #[serde(rename = "revisionLevel")]
+    pub revision_level: String,
+    #[serde(rename = "brandName")]
+    pub brand_name: Option<String>,
+    pub uuid: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(into = "u32", try_from = "u32")]
+#[repr(u32)]
+pub enum NcDeviceGenericState {
+    Unknown = 0,
+    NormalOperation = 1,
+    Initializing = 2,
+    Updating = 3,
+    LicensingError = 4,
+    InternalError = 5,
+}
+
+impl From<NcDeviceGenericState> for u32 {
+    fn from(state: NcDeviceGenericState) -> Self {
+        state as u32
+    }
+}
+
+impl From<u32> for NcDeviceGenericState {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => NcDeviceGenericState::Unknown,
+            1 => NcDeviceGenericState::NormalOperation,
+            2 => NcDeviceGenericState::Initializing,
+            3 => NcDeviceGenericState::Updating,
+            4 => NcDeviceGenericState::LicensingError,
+            5 => NcDeviceGenericState::InternalError,
+            _ => NcDeviceGenericState::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcDeviceOperationalState {
+    pub generic: NcDeviceGenericState,
+    #[serde(rename = "deviceSpecificDetails")]
+    pub device_specific_details: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(into = "u32", try_from = "u32")]
+#[repr(u32)]
+pub enum NcResetCause {
+    Unknown = 0,
+    PowerOn = 1,
+    InternalError = 2,
+    Upgrade = 3,
+    ControllerRequest = 4,
+    ManualReset = 5,
+}
+
+impl From<NcResetCause> for u32 {
+    fn from(cause: NcResetCause) -> Self {
+        cause as u32
+    }
+}
+
+impl From<u32> for NcResetCause {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => NcResetCause::Unknown,
+            1 => NcResetCause::PowerOn,
+            2 => NcResetCause::InternalError,
+            3 => NcResetCause::Upgrade,
+            4 => NcResetCause::ControllerRequest,
+            5 => NcResetCause::ManualReset,
+            _ => NcResetCause::Unknown,
+        }
+    }
 }
