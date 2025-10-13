@@ -18,13 +18,15 @@ use uuid::Uuid;
 // Declare modules
 mod data_types;
 mod nc_block;
+mod nc_device_manager;
 mod nc_object;
 mod websocket;
 
 // Imports
 use crate::{
-    data_types::{DeviceControl, NmosDevice, PropertyChangedEvent},
+    data_types::{DeviceControl, NcManufacturer, NcProduct, NmosDevice, PropertyChangedEvent},
     nc_block::NcBlock,
+    nc_device_manager::NcDeviceManager,
     nc_object::NcObject,
     websocket::{run_event_loop, websocket_handler},
 };
@@ -115,10 +117,35 @@ async fn main() -> anyhow::Result<()> {
         tx.clone(),
     );
 
+    let device_manager = NcDeviceManager::new(
+        2,
+        true,
+        Some(1),
+        "DeviceManager",
+        Some("Device Manager"),
+        "v1.0.0".to_string(),
+        NcManufacturer {
+            name: "Your Company".to_string(),
+            organization_id: None,
+            website: Some("https://example.com".to_string()),
+        },
+        NcProduct {
+            name: "Your Product".to_string(),
+            key: "MODEL-XYZ-2000".to_string(),
+            revision_level: "1.0".to_string(),
+            brand_name: Some("Your Brand".to_string()),
+            uuid: Some("550e8400-e29b-41d4-a716-446655440000".to_string()),
+            description: Some("Professional device".to_string()),
+        },
+        "SN-123456789".to_string(),
+        tx.clone(),
+    );
+    root.add_member(Box::new(device_manager));
+
     // Add NcObject member
     let obj_1 = NcObject::new(
         vec![1],
-        2,
+        3,
         true,
         Some(1),
         "my-obj-01",
@@ -131,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
     let mut block_1 = NcBlock::new(
         false,
         vec![1, 1],
-        3,
+        4,
         true,
         None,
         "my-block-01",
@@ -141,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
     );
     let obj_2 = NcObject::new(
         vec![1],
-        4,
+        5,
         true,
         Some(1),
         "my-nested-block-obj",
