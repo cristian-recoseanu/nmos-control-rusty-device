@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 pub const MESSAGE_TYPE_COMMAND: u16 = 0;
 pub const MESSAGE_TYPE_COMMAND_RESPONSE: u16 = 1;
@@ -7,6 +9,15 @@ pub const MESSAGE_TYPE_NOTIFICATION: u16 = 2;
 pub const MESSAGE_TYPE_SUBSCRIPTION: u16 = 3;
 pub const MESSAGE_TYPE_SUBSCRIPTION_RESPONSE: u16 = 4;
 pub const MESSAGE_TYPE_ERROR: u16 = 5;
+
+#[derive(Serialize, Clone)]
+pub struct NmosResource {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    pub version: String,
+    pub tags: HashMap<String, Vec<String>>,
+}
 
 #[derive(Serialize, Clone)]
 pub struct DeviceControl {
@@ -18,16 +29,117 @@ pub struct DeviceControl {
 
 #[derive(Serialize, Clone)]
 pub struct NmosDevice {
-    pub id: String,
-    pub label: String,
-    pub description: String,
+    #[serde(flatten)]
+    pub base: NmosResource,
     pub senders: Vec<String>,
     pub receivers: Vec<String>,
     pub node_id: String,
     #[serde(rename = "type")]
     pub type_: String,
-    pub version: String,
     pub controls: Vec<DeviceControl>,
+}
+
+#[allow(clippy::too_many_arguments)]
+impl NmosDevice {
+    pub fn new(
+        id: String,
+        label: String,
+        description: String,
+        version: String,
+        tags: HashMap<String, Vec<String>>,
+        senders: Vec<String>,
+        receivers: Vec<String>,
+        node_id: String,
+        type_: String,
+        controls: Vec<DeviceControl>,
+    ) -> Self {
+        NmosDevice {
+            base: NmosResource {
+                id,
+                label,
+                description,
+                version,
+                tags,
+            },
+            senders,
+            receivers,
+            node_id,
+            type_,
+            controls,
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+pub struct NmosClock {
+    pub name: String,
+    pub ref_type: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NmosInterface {
+    pub chassis_id: String,
+    pub name: String,
+    pub port_id: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NmosEndpoint {
+    pub host: String,
+    pub port: u32,
+    pub protocol: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NmosApi {
+    pub endpoints: Vec<NmosEndpoint>,
+    pub versions: Vec<String>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct NmosNode {
+    #[serde(flatten)]
+    pub base: NmosResource,
+    pub href: String,
+    pub hostname: String,
+    pub caps: Map<String, Value>,
+    pub services: Vec<Map<String, Value>>,
+    pub clocks: Vec<NmosClock>,
+    pub interfaces: Vec<NmosInterface>,
+    pub api: NmosApi,
+}
+
+#[allow(clippy::too_many_arguments)]
+impl NmosNode {
+    pub fn new(
+        id: String,
+        label: String,
+        description: String,
+        version: String,
+        tags: HashMap<String, Vec<String>>,
+        href: String,
+        hostname: String,
+        clocks: Vec<NmosClock>,
+        interfaces: Vec<NmosInterface>,
+        api: NmosApi,
+    ) -> Self {
+        NmosNode {
+            base: NmosResource {
+                id,
+                label,
+                description,
+                version,
+                tags,
+            },
+            href,
+            hostname,
+            caps: Map::new(),
+            services: Vec::new(),
+            clocks,
+            interfaces,
+            api,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

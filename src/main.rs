@@ -5,6 +5,7 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
+use gethostname::gethostname;
 use serde_json::json;
 use std::{
     collections::HashMap,
@@ -24,7 +25,10 @@ mod websocket;
 
 // Imports
 use crate::{
-    data_types::{DeviceControl, NcManufacturer, NcProduct, NmosDevice, PropertyChangedEvent},
+    data_types::{
+        DeviceControl, NcManufacturer, NcProduct, NmosApi, NmosClock, NmosDevice, NmosEndpoint,
+        NmosInterface, NmosNode, PropertyChangedEvent,
+    },
     nc_block::NcBlock,
     nc_device_manager::NcDeviceManager,
     nc_object::NcObject,
@@ -35,6 +39,7 @@ use crate::{
 
 pub struct AppState {
     pub connections: RwLock<HashMap<Uuid, ConnectionState>>,
+    pub node: NmosNode,
     pub device: NmosDevice,
     pub root_block: Mutex<NcBlock>,
     pub event_rx: Mutex<mpsc::UnboundedReceiver<PropertyChangedEvent>>,
@@ -84,22 +89,60 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let hostname = gethostname();
+
+    // Create node
+    let node = NmosNode::new(
+        Uuid::new_v4().to_string(),
+        "Example Node".into(),
+        "An example NMOS node".into(),
+        tai_timestamp(),
+        HashMap::new(),
+        "http://127.0.0.1:3000".into(),
+        hostname.to_string_lossy().into(),
+        vec![NmosClock {
+            name: "clk0".into(),
+            ref_type: "internal".into(),
+        }],
+        vec![
+            NmosInterface {
+                chassis_id: "00-15-5d-67-c3-4e".into(),
+                name: "eth0".into(),
+                port_id: "00-15-5d-67-c3-4e".into(),
+            },
+            NmosInterface {
+                chassis_id: "96-1c-70-61-b1-54".into(),
+                name: "eth1".into(),
+                port_id: "96-1c-70-61-b1-54".into(),
+            },
+        ],
+        NmosApi {
+            endpoints: vec![NmosEndpoint {
+                host: "127.0.0.1".into(),
+                port: 3000,
+                protocol: "http".into(),
+            }],
+            versions: vec!["v1.3".into()],
+        },
+    );
+
     // Create device
-    let device = NmosDevice {
-        id: "67c25159-ce25-4000-a66c-f31fff890265".into(), //Use: Uuid::new_v4().to_string() to generate new uuid
-        label: "Example Device".into(),
-        description: "An example NMOS device".into(),
-        senders: vec![],
-        receivers: vec![],
-        node_id: Uuid::new_v4().to_string(),
-        type_: "urn:x-nmos:device:generic".into(),
-        version: tai_timestamp(),
-        controls: vec![DeviceControl {
+    let device = NmosDevice::new(
+        "67c25159-ce25-4000-a66c-f31fff890265".into(), // id - Use: Uuid::new_v4().to_string() to generate new uuid
+        "Example Device".into(),
+        "An example NMOS device".into(),
+        tai_timestamp(),
+        HashMap::new(),
+        vec![],
+        vec![],
+        node.base.id.clone(),
+        "urn:x-nmos:device:generic".into(),
+        vec![DeviceControl {
             type_: "urn:x-nmos:control:ncp/v1.0".into(),
             href: "ws://127.0.0.1:3000/ws".into(),
             authorization: false,
         }],
-    };
+    );
 
     // Model setup
     let (tx, rx) = mpsc::unbounded_channel::<PropertyChangedEvent>();
@@ -179,6 +222,7 @@ async fn main() -> anyhow::Result<()> {
     root.add_member(Box::new(block_1));
 
     let app_state = Arc::new(AppState {
+        node,
         device,
         connections: RwLock::new(HashMap::new()),
         root_block: Mutex::new(root),
@@ -190,6 +234,37 @@ async fn main() -> anyhow::Result<()> {
 
     // Routes
     let app = Router::new()
+        .route("/x-nmos/node/v1.3", get(base_is_04_rest_api_handler))
+        .route("/x-nmos/node/v1.3/", get(base_is_04_rest_api_handler))
+        .route("/x-nmos/node/v1.3/self", get(node_self_rest_api_handler))
+        .route("/x-nmos/node/v1.3/sources", get(sources_rest_api_handler))
+        .route("/x-nmos/node/v1.3/sources/", get(sources_rest_api_handler))
+        .route(
+            "/x-nmos/node/v1.3/sources/{id}",
+            get(source_rest_api_handler),
+        )
+        .route("/x-nmos/node/v1.3/flows", get(flows_rest_api_handler))
+        .route("/x-nmos/node/v1.3/flows/", get(flows_rest_api_handler))
+        .route("/x-nmos/node/v1.3/flows/{id}", get(flow_rest_api_handler))
+        .route("/x-nmos/node/v1.3/senders", get(senders_rest_api_handler))
+        .route("/x-nmos/node/v1.3/senders/", get(senders_rest_api_handler))
+        .route(
+            "/x-nmos/node/v1.3/senders/{id}",
+            get(sender_rest_api_handler),
+        )
+        .route(
+            "/x-nmos/node/v1.3/receivers",
+            get(receivers_rest_api_handler),
+        )
+        .route(
+            "/x-nmos/node/v1.3/receivers/",
+            get(receivers_rest_api_handler),
+        )
+        .route(
+            "/x-nmos/node/v1.3/receivers/{id}",
+            get(receiver_rest_api_handler),
+        )
+        .route("/x-nmos/node/v1.3/devices", get(devices_rest_api_handler))
         .route("/x-nmos/node/v1.3/devices/", get(devices_rest_api_handler))
         .route(
             "/x-nmos/node/v1.3/devices/{id}",
@@ -207,6 +282,56 @@ async fn main() -> anyhow::Result<()> {
 
 // --- REST Handlers ---
 
+async fn base_is_04_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    (
+        StatusCode::OK,
+        Json(json!([
+            "self/",
+            "sources/",
+            "flows/",
+            "devices/",
+            "senders/",
+            "receivers/"
+        ])),
+    )
+}
+
+async fn node_self_rest_api_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(json!(state.node)))
+}
+
+async fn sources_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(json!([])))
+}
+
+async fn source_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    StatusCode::NOT_FOUND
+}
+
+async fn flows_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(json!([])))
+}
+
+async fn flow_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    StatusCode::NOT_FOUND
+}
+
+async fn senders_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(json!([])))
+}
+
+async fn sender_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    StatusCode::NOT_FOUND
+}
+
+async fn receivers_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    (StatusCode::OK, Json(json!([])))
+}
+
+async fn receiver_rest_api_handler(State(_state): State<Arc<AppState>>) -> impl IntoResponse {
+    StatusCode::NOT_FOUND
+}
+
 async fn devices_rest_api_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     (StatusCode::OK, Json(json!([state.device])))
 }
@@ -215,7 +340,7 @@ async fn device_rest_api_handler(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    if state.device.id == id {
+    if state.device.base.id == id {
         (StatusCode::OK, Json(json!(state.device)))
     } else {
         (
