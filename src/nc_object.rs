@@ -1,5 +1,5 @@
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcPropertyChangeType, PropertyChangedEvent,
+    ElementId, IdArgs, IdArgsValue, NcMethodStatus, NcPropertyChangeType, PropertyChangedEvent,
     PropertyChangedEventData,
 };
 use serde_json::Value;
@@ -20,14 +20,18 @@ pub trait NcMember: Send {
     // For downcasting when you need the concrete type
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn get_property(&self, oid: u64, id_args: &IdArgs) -> (Option<String>, Value);
-    fn set_property(&mut self, _oid: u64, id_args_value: IdArgsValue) -> (Option<String>, bool);
+    fn get_property(&self, oid: u64, id_args: &IdArgs) -> (Option<String>, Value, NcMethodStatus);
+    fn set_property(
+        &mut self,
+        _oid: u64,
+        id_args_value: IdArgsValue,
+    ) -> (Option<String>, NcMethodStatus);
     fn invoke_method(
         &self,
         _oid: u64,
         _method_id: ElementId,
         _args: Value,
-    ) -> (Option<String>, Option<Value>);
+    ) -> (Option<String>, Option<Value>, NcMethodStatus);
 }
 
 #[derive(Debug, Clone)]
@@ -66,18 +70,22 @@ impl NcMember for NcObject {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
-    fn get_property(&self, _oid: u64, id_args: &IdArgs) -> (Option<String>, Value) {
+    fn get_property(&self, _oid: u64, id_args: &IdArgs) -> (Option<String>, Value, NcMethodStatus) {
         match (id_args.id.level, id_args.id.index) {
-            (1, 1) => (None, json!(self.class_id)),
-            (1, 2) => (None, json!(self.oid)),
-            (1, 3) => (None, json!(self.constant_oid)),
-            (1, 4) => (None, json!(self.owner)),
-            (1, 5) => (None, json!(self.role)),
-            (1, 6) => (None, json!(self.user_label)),
-            _ => (None, json!(null)),
+            (1, 1) => (None, json!(self.class_id), NcMethodStatus::Ok),
+            (1, 2) => (None, json!(self.oid), NcMethodStatus::Ok),
+            (1, 3) => (None, json!(self.constant_oid), NcMethodStatus::Ok),
+            (1, 4) => (None, json!(self.owner), NcMethodStatus::Ok),
+            (1, 5) => (None, json!(self.role), NcMethodStatus::Ok),
+            (1, 6) => (None, json!(self.user_label), NcMethodStatus::Ok),
+            _ => (None, json!(null), NcMethodStatus::BadOid),
         }
     }
-    fn set_property(&mut self, _oid: u64, id_args_value: IdArgsValue) -> (Option<String>, bool) {
+    fn set_property(
+        &mut self,
+        _oid: u64,
+        id_args_value: IdArgsValue,
+    ) -> (Option<String>, NcMethodStatus) {
         if id_args_value.id.level == 1 && id_args_value.id.index == 6 {
             // Set userLabel
             if let Some(new_label) = id_args_value.value.as_str() {
@@ -91,11 +99,17 @@ impl NcMember for NcObject {
                         sequence_item_index: None,
                     },
                 ));
-                return (None, true);
+                return (None, NcMethodStatus::Ok);
             }
-            (Some("Property value was invalid".to_string()), false)
+            (
+                Some("Property value was invalid".to_string()),
+                NcMethodStatus::ParameterError,
+            )
         } else {
-            (Some("Could not find the property".to_string()), false)
+            (
+                Some("Could not find the property".to_string()),
+                NcMethodStatus::BadOid,
+            )
         }
     }
     fn invoke_method(
@@ -103,9 +117,13 @@ impl NcMember for NcObject {
         _oid: u64,
         _method_id: ElementId,
         _args: Value,
-    ) -> (Option<String>, Option<Value>) {
+    ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         //TODO: This is where we can add treatment for other methods in NcObject
-        (Some("Methods not yet implemented".to_string()), None)
+        (
+            Some("Method not yet implemented".to_string()),
+            None,
+            NcMethodStatus::MethodNotImplemented,
+        )
     }
 }
 

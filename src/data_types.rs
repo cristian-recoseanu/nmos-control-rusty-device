@@ -10,6 +10,62 @@ pub const MESSAGE_TYPE_SUBSCRIPTION: u16 = 3;
 pub const MESSAGE_TYPE_SUBSCRIPTION_RESPONSE: u16 = 4;
 pub const MESSAGE_TYPE_ERROR: u16 = 5;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(into = "u16", try_from = "u16")]
+#[repr(u16)]
+pub enum NcMethodStatus {
+    Ok = 200,
+    PropertyDeprecated = 298,
+    MethodDeprecated = 299,
+    BadCommandFormat = 400,
+    Unauthorized = 401,
+    BadOid = 404,
+    Readonly = 405,
+    InvalidRequest = 406,
+    Conflict = 409,
+    BufferOverflow = 413,
+    IndexOutOfBounds = 414,
+    ParameterError = 417,
+    Locked = 423,
+    DeviceError = 500,
+    MethodNotImplemented = 501,
+    PropertyNotImplemented = 502,
+    NotReady = 503,
+    Timeout = 504,
+}
+
+impl From<NcMethodStatus> for u16 {
+    fn from(status: NcMethodStatus) -> Self {
+        status as u16
+    }
+}
+
+impl From<u16> for NcMethodStatus {
+    fn from(value: u16) -> Self {
+        match value {
+            200 => NcMethodStatus::Ok,
+            298 => NcMethodStatus::PropertyDeprecated,
+            299 => NcMethodStatus::MethodDeprecated,
+            400 => NcMethodStatus::BadCommandFormat,
+            401 => NcMethodStatus::Unauthorized,
+            404 => NcMethodStatus::BadOid,
+            405 => NcMethodStatus::Readonly,
+            406 => NcMethodStatus::InvalidRequest,
+            409 => NcMethodStatus::Conflict,
+            413 => NcMethodStatus::BufferOverflow,
+            414 => NcMethodStatus::IndexOutOfBounds,
+            417 => NcMethodStatus::ParameterError,
+            423 => NcMethodStatus::Locked,
+            500 => NcMethodStatus::DeviceError,
+            501 => NcMethodStatus::MethodNotImplemented,
+            502 => NcMethodStatus::PropertyNotImplemented,
+            503 => NcMethodStatus::NotReady,
+            504 => NcMethodStatus::Timeout,
+            _ => NcMethodStatus::DeviceError,
+        }
+    }
+}
+
 #[derive(Serialize, Clone)]
 pub struct NmosResource {
     pub id: String,
@@ -176,17 +232,36 @@ pub struct WsCommandMessage {
 }
 
 #[derive(Serialize, Debug)]
+pub struct ResponseBase {
+    pub status: NcMethodStatus,
+}
+
+#[derive(Serialize, Debug)]
 pub struct ResponseResult {
-    pub status: u64,
+    #[serde(flatten)]
+    pub base: ResponseBase,
     pub value: Value,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ResponseError {
+    #[serde(flatten)]
+    pub base: ResponseBase,
     #[serde(rename = "errorMessage")]
     pub error_message: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
+#[serde(untagged)]
+pub enum ResponsePayload {
+    Result(ResponseResult),
+    Error(ResponseError),
+}
+
+#[derive(Serialize, Debug)]
 pub struct Response {
     pub handle: u64,
-    pub result: ResponseResult,
+    pub result: ResponsePayload,
 }
 
 #[derive(Serialize, Debug)]

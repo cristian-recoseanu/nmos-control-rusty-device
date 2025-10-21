@@ -1,5 +1,5 @@
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcBlockMemberDescriptor, NcPropertyChangeType,
+    ElementId, IdArgs, IdArgsValue, NcBlockMemberDescriptor, NcMethodStatus, NcPropertyChangeType,
     PropertyChangedEvent, PropertyChangedEventData,
 };
 use crate::nc_object::{NcMember, NcObject};
@@ -48,30 +48,45 @@ impl NcMember for NcBlock {
         self
     }
 
-    fn get_property(&self, oid: u64, id_args: &IdArgs) -> (Option<String>, Value) {
+    fn get_property(&self, oid: u64, id_args: &IdArgs) -> (Option<String>, Value, NcMethodStatus) {
         if oid == self.base.oid {
             match (id_args.id.level, id_args.id.index) {
-                (2, 1) => (None, json!(self.enabled)),
-                (2, 2) => (None, json!(self.generate_members_descriptors())),
+                (2, 1) => (None, json!(self.enabled), NcMethodStatus::Ok),
+                (2, 2) => (
+                    None,
+                    json!(self.generate_members_descriptors()),
+                    NcMethodStatus::Ok,
+                ),
                 _ => self.base.get_property(oid, id_args),
             }
         } else if let Some(member) = self.find_member(oid) {
             member.get_property(oid, id_args)
         } else {
-            (Some("Member not found".to_string()), json!(null))
+            (
+                Some("Member not found".to_string()),
+                json!(null),
+                NcMethodStatus::BadOid,
+            )
         }
     }
 
-    fn set_property(&mut self, oid: u64, id_args_value: IdArgsValue) -> (Option<String>, bool) {
+    fn set_property(
+        &mut self,
+        oid: u64,
+        id_args_value: IdArgsValue,
+    ) -> (Option<String>, NcMethodStatus) {
         if oid == self.base.oid {
             match id_args_value.id.level {
-                2 => (Some("Could not find the property".to_string()), false),
+                2 => (
+                    Some("Could not find the property".to_string()),
+                    NcMethodStatus::BadOid,
+                ),
                 _ => self.base.set_property(oid, id_args_value),
             }
         } else if let Some(member) = self.find_member_mut(oid) {
             member.set_property(oid, id_args_value)
         } else {
-            (Some("Member not found".to_string()), false)
+            (Some("Member not found".to_string()), NcMethodStatus::BadOid)
         }
     }
 
@@ -80,19 +95,39 @@ impl NcMember for NcBlock {
         oid: u64,
         method_id: ElementId,
         args: Value,
-    ) -> (Option<String>, Option<Value>) {
+    ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         if oid == self.base.oid {
             match (method_id.level, method_id.index) {
-                (2, 1) => (None, Some(json!(self.get_member_descriptors(args)))), // 2m1
-                (2, 2) => (None, Some(json!(self.find_members_by_path(args)))),   // 2m2
-                (2, 3) => (None, Some(json!(self.find_members_by_role(args)))),   // 2m3
-                (2, 4) => (None, Some(json!(self.find_members_by_class_id(args)))), // 2m4
+                (2, 1) => (
+                    None,
+                    Some(json!(self.get_member_descriptors(args))),
+                    NcMethodStatus::Ok,
+                ), // 2m1
+                (2, 2) => (
+                    None,
+                    Some(json!(self.find_members_by_path(args))),
+                    NcMethodStatus::Ok,
+                ), // 2m2
+                (2, 3) => (
+                    None,
+                    Some(json!(self.find_members_by_role(args))),
+                    NcMethodStatus::Ok,
+                ), // 2m3
+                (2, 4) => (
+                    None,
+                    Some(json!(self.find_members_by_class_id(args))),
+                    NcMethodStatus::Ok,
+                ), // 2m4
                 _ => self.base.invoke_method(oid, method_id, args),
             }
         } else if let Some(member) = self.find_member(oid) {
             member.invoke_method(oid, method_id, args)
         } else {
-            (Some("Member not found".to_string()), None)
+            (
+                Some("Member not found".to_string()),
+                None,
+                NcMethodStatus::BadOid,
+            )
         }
     }
 }
