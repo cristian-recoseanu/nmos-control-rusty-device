@@ -34,35 +34,47 @@ async fn process_command(msg: WsCommandMessage, state: Arc<AppState>) -> WsComma
         let (status, error_message, value) = match (cmd.method_id.level, cmd.method_id.index) {
             (1, 1) => match from_value::<IdArgs>(cmd.arguments) {
                 Ok(id_args) => {
-                    let (err, val) = root.get_property(cmd.oid, &id_args);
-                    (if err.is_some() { 400 } else { 200 }, err, val)
+                    let (err, val, status) = root.get_property(cmd.oid, &id_args);
+                    (status, err, val)
                 }
-                Err(e) => (400, Some(format!("Invalid args: {e}")), json!(null)),
+                Err(e) => (
+                    NcMethodStatus::BadCommandFormat,
+                    Some(format!("Invalid args: {e}")),
+                    json!(null),
+                ),
             },
             (1, 2) => match from_value::<IdArgsValue>(cmd.arguments) {
                 Ok(id_val) => {
-                    let (err, ok) = root.set_property(cmd.oid, id_val);
-                    (if ok { 200 } else { 400 }, err, json!(null))
+                    let (err, status_code) = root.set_property(cmd.oid, id_val);
+                    (status_code, err, json!(null))
                 }
-                Err(e) => (400, Some(format!("Invalid args: {e}")), json!(null)),
+                Err(e) => (
+                    NcMethodStatus::BadCommandFormat,
+                    Some(format!("Invalid args: {e}")),
+                    json!(null),
+                ),
             },
             _ => {
-                let (err, resp) = root.invoke_method(cmd.oid, cmd.method_id, cmd.arguments);
-                (
-                    if err.is_some() { 400 } else { 200 },
-                    err,
-                    resp.unwrap_or(json!(null)),
-                )
+                let (err, resp, status) = root.invoke_method(cmd.oid, cmd.method_id, cmd.arguments);
+                (status, err, resp.unwrap_or(json!(null)))
             }
+        };
+
+        let result = if error_message.is_some() {
+            ResponsePayload::Error(ResponseError {
+                base: ResponseBase { status },
+                error_message,
+            })
+        } else {
+            ResponsePayload::Result(ResponseResult {
+                base: ResponseBase { status },
+                value,
+            })
         };
 
         responses.push(Response {
             handle: cmd.handle,
-            result: ResponseResult {
-                status,
-                error_message,
-                value,
-            },
+            result,
         });
     }
 

@@ -1,6 +1,7 @@
 use crate::data_types::{
     ElementId, IdArgs, IdArgsValue, NcDeviceGenericState, NcDeviceOperationalState, NcManufacturer,
-    NcProduct, NcPropertyChangeType, NcResetCause, PropertyChangedEvent, PropertyChangedEventData,
+    NcMethodStatus, NcProduct, NcPropertyChangeType, NcResetCause, PropertyChangedEvent,
+    PropertyChangedEventData,
 };
 use crate::nc_object::{NcMember, NcObject};
 use serde_json::{Value, json};
@@ -54,23 +55,27 @@ impl NcMember for NcDeviceManager {
         self
     }
 
-    fn get_property(&self, _oid: u64, id_args: &IdArgs) -> (Option<String>, Value) {
+    fn get_property(&self, _oid: u64, id_args: &IdArgs) -> (Option<String>, Value, NcMethodStatus) {
         match (id_args.id.level, id_args.id.index) {
-            (3, 1) => (None, json!(self.nc_version)),
-            (3, 2) => (None, json!(self.manufacturer)),
-            (3, 3) => (None, json!(self.product)),
-            (3, 4) => (None, json!(self.serial_number)),
-            (3, 5) => (None, json!(self.user_inventory_code)),
-            (3, 6) => (None, json!(self.device_name)),
-            (3, 7) => (None, json!(self.device_role)),
-            (3, 8) => (None, json!(self.operational_state)),
-            (3, 9) => (None, json!(self.reset_cause)),
-            (3, 10) => (None, json!(self.message)),
+            (3, 1) => (None, json!(self.nc_version), NcMethodStatus::Ok),
+            (3, 2) => (None, json!(self.manufacturer), NcMethodStatus::Ok),
+            (3, 3) => (None, json!(self.product), NcMethodStatus::Ok),
+            (3, 4) => (None, json!(self.serial_number), NcMethodStatus::Ok),
+            (3, 5) => (None, json!(self.user_inventory_code), NcMethodStatus::Ok),
+            (3, 6) => (None, json!(self.device_name), NcMethodStatus::Ok),
+            (3, 7) => (None, json!(self.device_role), NcMethodStatus::Ok),
+            (3, 8) => (None, json!(self.operational_state), NcMethodStatus::Ok),
+            (3, 9) => (None, json!(self.reset_cause), NcMethodStatus::Ok),
+            (3, 10) => (None, json!(self.message), NcMethodStatus::Ok),
             _ => self.base.get_property(_oid, id_args),
         }
     }
 
-    fn set_property(&mut self, _oid: u64, id_args_value: IdArgsValue) -> (Option<String>, bool) {
+    fn set_property(
+        &mut self,
+        _oid: u64,
+        id_args_value: IdArgsValue,
+    ) -> (Option<String>, NcMethodStatus) {
         if id_args_value.id.level == 3 {
             match id_args_value.id.index {
                 5 => {
@@ -80,7 +85,10 @@ impl NcMember for NcDeviceManager {
                     } else if let Some(code) = id_args_value.value.as_str() {
                         self.user_inventory_code = Some(code.to_string());
                     } else {
-                        return (Some("Property value was invalid".to_string()), false);
+                        return (
+                            Some("Property value was invalid".to_string()),
+                            NcMethodStatus::ParameterError,
+                        );
                     }
 
                     let _ = self.base.notifier.send(PropertyChangedEvent::new(
@@ -92,7 +100,7 @@ impl NcMember for NcDeviceManager {
                             sequence_item_index: None,
                         },
                     ));
-                    (None, true)
+                    (None, NcMethodStatus::Ok)
                 }
                 6 => {
                     // deviceName
@@ -101,7 +109,10 @@ impl NcMember for NcDeviceManager {
                     } else if let Some(name) = id_args_value.value.as_str() {
                         self.device_name = Some(name.to_string());
                     } else {
-                        return (Some("Property value was invalid".to_string()), false);
+                        return (
+                            Some("Property value was invalid".to_string()),
+                            NcMethodStatus::ParameterError,
+                        );
                     }
 
                     let _ = self.base.notifier.send(PropertyChangedEvent::new(
@@ -113,7 +124,7 @@ impl NcMember for NcDeviceManager {
                             sequence_item_index: None,
                         },
                     ));
-                    (None, true)
+                    (None, NcMethodStatus::Ok)
                 }
                 7 => {
                     // deviceRole
@@ -122,7 +133,10 @@ impl NcMember for NcDeviceManager {
                     } else if let Some(role) = id_args_value.value.as_str() {
                         self.device_role = Some(role.to_string());
                     } else {
-                        return (Some("Property value was invalid".to_string()), false);
+                        return (
+                            Some("Property value was invalid".to_string()),
+                            NcMethodStatus::ParameterError,
+                        );
                     }
 
                     let _ = self.base.notifier.send(PropertyChangedEvent::new(
@@ -134,11 +148,11 @@ impl NcMember for NcDeviceManager {
                             sequence_item_index: None,
                         },
                     ));
-                    (None, true)
+                    (None, NcMethodStatus::Ok)
                 }
                 _ => (
                     Some("Could not find the property or it is read-only".to_string()),
-                    false,
+                    NcMethodStatus::BadOid,
                 ),
             }
         } else {
@@ -151,7 +165,7 @@ impl NcMember for NcDeviceManager {
         _oid: u64,
         method_id: ElementId,
         args: Value,
-    ) -> (Option<String>, Option<Value>) {
+    ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         // NcDeviceManager has no methods, delegate to base
         self.base.invoke_method(_oid, method_id, args)
     }
