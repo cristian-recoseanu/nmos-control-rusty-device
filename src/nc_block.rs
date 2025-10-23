@@ -143,6 +143,8 @@ impl NcBlock {
         role: &str,
         user_label: Option<&str>,
         enabled: bool,
+        touchpoints: Option<Vec<crate::data_types::NcTouchpoint>>,
+        runtime_property_constraints: Option<Vec<crate::data_types::NcPropertyConstraints>>,
         notifier: mpsc::UnboundedSender<PropertyChangedEvent>,
     ) -> Self {
         NcBlock {
@@ -153,6 +155,8 @@ impl NcBlock {
                 owner,
                 role,
                 user_label,
+                touchpoints,
+                runtime_property_constraints,
                 notifier,
             ),
             is_root,

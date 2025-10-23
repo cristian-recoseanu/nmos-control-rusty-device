@@ -157,6 +157,8 @@ async fn main() -> anyhow::Result<()> {
         "root",
         None,
         true,
+        None,
+        None,
         tx.clone(),
     );
 
@@ -166,6 +168,18 @@ async fn main() -> anyhow::Result<()> {
         Some(1),
         "DeviceManager",
         Some("Device Manager"),
+        Some(vec![crate::data_types::NcTouchpoint::Nmos(
+            crate::data_types::NcTouchpointNmos {
+                base: crate::data_types::NcTouchpointBase {
+                    context_namespace: "x-nmos".into(),
+                },
+                resource: crate::data_types::NcTouchpointResourceNmos {
+                    resource_type: "device".into(),
+                    id: device.base.id.clone(),
+                },
+            },
+        )]),
+        None,
         "v1.0.0".to_string(),
         NcManufacturer {
             name: "Your Company".to_string(),
@@ -193,6 +207,8 @@ async fn main() -> anyhow::Result<()> {
         Some(1),
         "my-obj-01",
         Some("My object 01"),
+        None,
+        None,
         tx.clone(),
     );
     root.add_member(Box::new(obj_1));
@@ -207,6 +223,8 @@ async fn main() -> anyhow::Result<()> {
         "my-block-01",
         None,
         true,
+        None,
+        None,
         tx.clone(),
     );
     let obj_2 = NcObject::new(
@@ -215,6 +233,8 @@ async fn main() -> anyhow::Result<()> {
         true,
         Some(1),
         "my-nested-block-obj",
+        None,
+        None,
         None,
         tx.clone(),
     );
