@@ -352,6 +352,82 @@ impl PropertyChangedEvent {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcTouchpointResourceNmos {
+    #[serde(rename = "resourceType")]
+    pub resource_type: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcTouchpointResourceNmosChannelMapping {
+    #[serde(rename = "resourceType")]
+    pub resource_type: String,
+    pub id: String,
+    #[serde(rename = "ioId")]
+    pub io_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcTouchpointBase {
+    #[serde(rename = "contextNamespace")]
+    pub context_namespace: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcTouchpointNmos {
+    #[serde(flatten)]
+    pub base: NcTouchpointBase,
+    pub resource: NcTouchpointResourceNmos,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcTouchpointNmosChannelMapping {
+    #[serde(flatten)]
+    pub base: NcTouchpointBase,
+    pub resource: NcTouchpointResourceNmosChannelMapping,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NcTouchpoint {
+    Nmos(NcTouchpointNmos),
+    NmosChannelMapping(NcTouchpointNmosChannelMapping),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcPropertyConstraintsBase {
+    #[serde(rename = "propertyId")]
+    pub property_id: ElementId,
+    #[serde(rename = "defaultValue")]
+    pub default_value: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcPropertyConstraintsNumber {
+    #[serde(flatten)]
+    pub base: NcPropertyConstraintsBase,
+    pub maximum: Option<f64>,
+    pub minimum: Option<f64>,
+    pub step: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NcPropertyConstraintsString {
+    #[serde(flatten)]
+    pub base: NcPropertyConstraintsBase,
+    #[serde(rename = "maxCharacters")]
+    pub max_characters: Option<u32>,
+    pub pattern: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NcPropertyConstraints {
+    Number(NcPropertyConstraintsNumber),
+    String(NcPropertyConstraintsString),
+}
+
 #[derive(Serialize, Debug)]
 pub struct WsNotificationMessage {
     pub notifications: Vec<PropertyChangedEvent>,

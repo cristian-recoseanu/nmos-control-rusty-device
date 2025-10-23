@@ -1,6 +1,6 @@
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcMethodStatus, NcPropertyChangeType, PropertyChangedEvent,
-    PropertyChangedEventData,
+    ElementId, IdArgs, IdArgsValue, NcMethodStatus, NcPropertyChangeType, NcPropertyConstraints,
+    NcTouchpoint, PropertyChangedEvent, PropertyChangedEventData,
 };
 use serde_json::Value;
 use serde_json::json;
@@ -42,6 +42,8 @@ pub struct NcObject {
     pub owner: Option<u64>,
     pub role: String,
     pub user_label: Option<String>,
+    pub touchpoints: Option<Vec<NcTouchpoint>>,
+    pub runtime_property_constraints: Option<Vec<NcPropertyConstraints>>,
     pub notifier: mpsc::UnboundedSender<PropertyChangedEvent>,
 }
 
@@ -78,6 +80,12 @@ impl NcMember for NcObject {
             (1, 4) => (None, json!(self.owner), NcMethodStatus::Ok),
             (1, 5) => (None, json!(self.role), NcMethodStatus::Ok),
             (1, 6) => (None, json!(self.user_label), NcMethodStatus::Ok),
+            (1, 7) => (None, json!(self.touchpoints), NcMethodStatus::Ok),
+            (1, 8) => (
+                None,
+                json!(self.runtime_property_constraints),
+                NcMethodStatus::Ok,
+            ),
             _ => (None, json!(null), NcMethodStatus::BadOid),
         }
     }
@@ -86,25 +94,37 @@ impl NcMember for NcObject {
         _oid: u64,
         id_args_value: IdArgsValue,
     ) -> (Option<String>, NcMethodStatus) {
-        if id_args_value.id.level == 1 && id_args_value.id.index == 6 {
-            // Set userLabel
-            if let Some(new_label) = id_args_value.value.as_str() {
-                self.user_label = Some(new_label.to_string());
-                let _ = self.notifier.send(PropertyChangedEvent::new(
-                    self.oid,
-                    PropertyChangedEventData {
-                        property_id: id_args_value.id,
-                        change_type: NcPropertyChangeType::ValueChanged,
-                        value: serde_json::json!(new_label),
-                        sequence_item_index: None,
-                    },
-                ));
-                return (None, NcMethodStatus::Ok);
+        if id_args_value.id.level == 1 {
+            match id_args_value.id.index {
+                6 => {
+                    // Set userLabel
+                    if let Some(new_label) = id_args_value.value.as_str() {
+                        self.user_label = Some(new_label.to_string());
+                        let _ = self.notifier.send(PropertyChangedEvent::new(
+                            self.oid,
+                            PropertyChangedEventData {
+                                property_id: id_args_value.id,
+                                change_type: NcPropertyChangeType::ValueChanged,
+                                value: serde_json::json!(new_label),
+                                sequence_item_index: None,
+                            },
+                        ));
+                        return (None, NcMethodStatus::Ok);
+                    }
+                    (
+                        Some("Property value was invalid".to_string()),
+                        NcMethodStatus::ParameterError,
+                    )
+                }
+                1 | 2 | 3 | 4 | 5 | 7 | 8 => (
+                    Some("Property is readonly".to_string()),
+                    NcMethodStatus::Readonly,
+                ),
+                _ => (
+                    Some("Could not find the property".to_string()),
+                    NcMethodStatus::BadOid,
+                ),
             }
-            (
-                Some("Property value was invalid".to_string()),
-                NcMethodStatus::ParameterError,
-            )
         } else {
             (
                 Some("Could not find the property".to_string()),
@@ -127,6 +147,7 @@ impl NcMember for NcObject {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 impl NcObject {
     pub fn new(
         class_id: Vec<u32>,
@@ -135,6 +156,8 @@ impl NcObject {
         owner: Option<u64>,
         role: &str,
         user_label: Option<&str>,
+        touchpoints: Option<Vec<NcTouchpoint>>,
+        runtime_property_constraints: Option<Vec<NcPropertyConstraints>>,
         notifier: mpsc::UnboundedSender<PropertyChangedEvent>,
     ) -> Self {
         NcObject {
@@ -144,6 +167,8 @@ impl NcObject {
             oid,
             role: role.to_string(),
             user_label: user_label.map(|s| s.to_string()),
+            touchpoints,
+            runtime_property_constraints,
             notifier,
         }
     }

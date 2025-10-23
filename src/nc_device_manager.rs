@@ -1,7 +1,7 @@
 use crate::data_types::{
     ElementId, IdArgs, IdArgsValue, NcDeviceGenericState, NcDeviceOperationalState, NcManufacturer,
-    NcMethodStatus, NcProduct, NcPropertyChangeType, NcResetCause, PropertyChangedEvent,
-    PropertyChangedEventData,
+    NcMethodStatus, NcProduct, NcPropertyChangeType, NcPropertyConstraints, NcResetCause,
+    NcTouchpoint, PropertyChangedEvent, PropertyChangedEventData,
 };
 use crate::nc_object::{NcMember, NcObject};
 use serde_json::{Value, json};
@@ -179,6 +179,8 @@ impl NcDeviceManager {
         owner: Option<u64>,
         role: &str,
         user_label: Option<&str>,
+        touchpoints: Option<Vec<NcTouchpoint>>,
+        runtime_property_constraints: Option<Vec<NcPropertyConstraints>>,
         nc_version: String,
         manufacturer: NcManufacturer,
         product: NcProduct,
@@ -193,6 +195,8 @@ impl NcDeviceManager {
                 owner,
                 role,
                 user_label,
+                touchpoints,
+                runtime_property_constraints,
                 notifier,
             ),
             nc_version,
