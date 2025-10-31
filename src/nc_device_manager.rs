@@ -1,15 +1,17 @@
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcDeviceGenericState, NcDeviceOperationalState, NcManufacturer,
-    NcMethodStatus, NcProduct, NcPropertyChangeType, NcPropertyConstraints, NcResetCause,
-    NcTouchpoint, PropertyChangedEvent, PropertyChangedEventData,
+    IdArgs, IdArgsValue, NcClassDescriptor, NcDeviceGenericState, NcDeviceOperationalState,
+    NcElementId, NcManufacturer, NcMethodStatus, NcProduct, NcPropertyChangeType,
+    NcPropertyConstraints, NcPropertyDescriptor, NcResetCause, NcTouchpoint, PropertyChangedEvent,
+    PropertyChangedEventData,
 };
-use crate::nc_object::{NcMember, NcObject};
+use crate::nc_manager::NcManager;
+use crate::nc_object::NcMember;
 use serde_json::{Value, json};
 use std::any::Any;
 use tokio::sync::mpsc;
 
 pub struct NcDeviceManager {
-    pub base: NcObject,
+    pub base: NcManager,
     pub nc_version: String,
     pub manufacturer: NcManufacturer,
     pub product: NcProduct,
@@ -26,25 +28,20 @@ impl NcMember for NcDeviceManager {
     fn member_type(&self) -> &'static str {
         "NcDeviceManager"
     }
-
     fn get_role(&self) -> &str {
-        &self.base.role
+        self.base.get_role()
     }
-
     fn get_oid(&self) -> u64 {
-        self.base.oid
+        self.base.get_oid()
     }
-
     fn get_constant_oid(&self) -> bool {
-        self.base.constant_oid
+        self.base.get_constant_oid()
     }
-
     fn get_class_id(&self) -> &[u32] {
-        &self.base.class_id
+        self.base.get_class_id()
     }
-
     fn get_user_label(&self) -> Option<&str> {
-        self.base.user_label.as_deref()
+        self.base.get_user_label()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -91,8 +88,8 @@ impl NcMember for NcDeviceManager {
                         );
                     }
 
-                    let _ = self.base.notifier.send(PropertyChangedEvent::new(
-                        self.base.oid,
+                    let _ = self.base.base.notifier.send(PropertyChangedEvent::new(
+                        self.base.base.oid,
                         PropertyChangedEventData {
                             property_id: id_args_value.id,
                             change_type: NcPropertyChangeType::ValueChanged,
@@ -115,8 +112,8 @@ impl NcMember for NcDeviceManager {
                         );
                     }
 
-                    let _ = self.base.notifier.send(PropertyChangedEvent::new(
-                        self.base.oid,
+                    let _ = self.base.base.notifier.send(PropertyChangedEvent::new(
+                        self.base.base.oid,
                         PropertyChangedEventData {
                             property_id: id_args_value.id,
                             change_type: NcPropertyChangeType::ValueChanged,
@@ -139,8 +136,8 @@ impl NcMember for NcDeviceManager {
                         );
                     }
 
-                    let _ = self.base.notifier.send(PropertyChangedEvent::new(
-                        self.base.oid,
+                    let _ = self.base.base.notifier.send(PropertyChangedEvent::new(
+                        self.base.base.oid,
                         PropertyChangedEventData {
                             property_id: id_args_value.id,
                             change_type: NcPropertyChangeType::ValueChanged,
@@ -152,7 +149,7 @@ impl NcMember for NcDeviceManager {
                 }
                 _ => (
                     Some("Could not find the property or it is read-only".to_string()),
-                    NcMethodStatus::BadOid,
+                    NcMethodStatus::PropertyNotImplemented,
                 ),
             }
         } else {
@@ -163,11 +160,144 @@ impl NcMember for NcDeviceManager {
     fn invoke_method(
         &self,
         _oid: u64,
-        method_id: ElementId,
+        method_id: NcElementId,
         args: Value,
     ) -> (Option<String>, Option<Value>, NcMethodStatus) {
-        // NcDeviceManager has no methods, delegate to base
         self.base.invoke_method(_oid, method_id, args)
+    }
+}
+
+impl NcDeviceManager {
+    pub fn get_class_descriptor(include_inherited: bool) -> NcClassDescriptor {
+        let mut desc = NcClassDescriptor {
+            base: crate::data_types::NcDescriptor { description: Some("NcDeviceManager class descriptor".to_string()) },
+            class_id: vec![1, 3, 1],
+            name: "NcDeviceManager".to_string(),
+            fixed_role: Some("DeviceManager".to_string()),
+            properties: vec![
+                NcPropertyDescriptor { // 3p1
+                    base: crate::data_types::NcDescriptor { description: Some("Version of nc this dev uses".to_string()) },
+                    id: NcElementId { level: 3, index: 1 },
+                    name: "ncVersion".to_string(),
+                    type_name: Some("NcVersionCode".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p2
+                    base: crate::data_types::NcDescriptor { description: Some("Manufacturer descriptor".to_string()) },
+                    id: NcElementId { level: 3, index: 2 },
+                    name: "manufacturer".to_string(),
+                    type_name: Some("NcManufacturer".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p3
+                    base: crate::data_types::NcDescriptor { description: Some("Product descriptor".to_string()) },
+                    id: NcElementId { level: 3, index: 3 },
+                    name: "product".to_string(),
+                    type_name: Some("NcProduct".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p4
+                    base: crate::data_types::NcDescriptor { description: Some("Serial number".to_string()) },
+                    id: NcElementId { level: 3, index: 4 },
+                    name: "serialNumber".to_string(),
+                    type_name: Some("NcString".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p5
+                    base: crate::data_types::NcDescriptor { description: Some("Asset tracking identifier (user specified)".to_string()) },
+                    id: NcElementId { level: 3, index: 5 },
+                    name: "userInventoryCode".to_string(),
+                    type_name: Some("NcString".to_string()),
+                    is_read_only: false,
+                    is_nullable: true,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p6
+                    base: crate::data_types::NcDescriptor { description: Some("Name of this device in the application. Instance name, not product name.".to_string()) },
+                    id: NcElementId { level: 3, index: 6 },
+                    name: "deviceName".to_string(),
+                    type_name: Some("NcString".to_string()),
+                    is_read_only: false,
+                    is_nullable: true,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p7
+                    base: crate::data_types::NcDescriptor { description: Some("Role of this device in the application.".to_string()) },
+                    id: NcElementId { level: 3, index: 7 },
+                    name: "deviceRole".to_string(),
+                    type_name: Some("NcString".to_string()),
+                    is_read_only: false,
+                    is_nullable: true,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p8
+                    base: crate::data_types::NcDescriptor { description: Some("Device operational state".to_string()) },
+                    id: NcElementId { level: 3, index: 8 },
+                    name: "operationalState".to_string(),
+                    type_name: Some("NcDeviceOperationalState".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p9
+                    base: crate::data_types::NcDescriptor { description: Some("Reason for most recent reset".to_string()) },
+                    id: NcElementId { level: 3, index: 9 },
+                    name: "resetCause".to_string(),
+                    type_name: Some("NcResetCause".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor { // 3p10
+                    base: crate::data_types::NcDescriptor { description: Some("Arbitrary message from dev to controller".to_string()) },
+                    id: NcElementId { level: 3, index: 10 },
+                    name: "message".to_string(),
+                    type_name: Some("NcString".to_string()),
+                    is_read_only: true,
+                    is_nullable: true,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+            ],
+            methods: vec![],
+            events: vec![],
+        };
+
+        if include_inherited {
+            let base_desc = crate::nc_manager::NcManager::get_class_descriptor(true);
+            desc.properties.extend(base_desc.properties);
+            desc.methods.extend(base_desc.methods);
+            desc.events.extend(base_desc.events);
+        }
+
+        desc
     }
 }
 
@@ -188,7 +318,7 @@ impl NcDeviceManager {
         notifier: mpsc::UnboundedSender<PropertyChangedEvent>,
     ) -> Self {
         NcDeviceManager {
-            base: NcObject::new(
+            base: NcManager::new(
                 vec![1, 3, 1], // Class ID for NcDeviceManager
                 oid,
                 constant_oid,

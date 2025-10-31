@@ -19,7 +19,9 @@ use uuid::Uuid;
 // Declare modules
 mod data_types;
 mod nc_block;
+mod nc_class_manager;
 mod nc_device_manager;
+mod nc_manager;
 mod nc_object;
 mod websocket;
 
@@ -30,6 +32,7 @@ use crate::{
         NmosInterface, NmosNode, PropertyChangedEvent,
     },
     nc_block::NcBlock,
+    nc_class_manager::NcClassManager,
     nc_device_manager::NcDeviceManager,
     nc_object::NcObject,
     websocket::{run_event_loop, websocket_handler},
@@ -62,7 +65,7 @@ impl AppState {
         })
         .unwrap();
 
-        for conn in conns.values() {
+        for (_conn_id, conn) in conns.iter() {
             if conn.subscribed_oids.contains(&event_data.oid) {
                 let _ = conn.sender.send(Message::Text(payload.clone().into()));
             }
@@ -174,7 +177,9 @@ async fn main() -> anyhow::Result<()> {
                     context_namespace: "x-nmos".into(),
                 },
                 resource: crate::data_types::NcTouchpointResourceNmos {
-                    resource_type: "device".into(),
+                    base: crate::data_types::NcTouchpointResourceBase {
+                        resource_type: "device".into(),
+                    },
                     id: device.base.id.clone(),
                 },
             },
@@ -199,10 +204,22 @@ async fn main() -> anyhow::Result<()> {
     );
     root.add_member(Box::new(device_manager));
 
+    let class_manager = NcClassManager::new(
+        3,
+        true,
+        Some(1),
+        "ClassManager",
+        Some("Class Manager"),
+        None,
+        None,
+        tx.clone(),
+    );
+    root.add_member(Box::new(class_manager));
+
     // Add NcObject member
     let obj_1 = NcObject::new(
         vec![1],
-        3,
+        4,
         true,
         Some(1),
         "my-obj-01",
@@ -217,9 +234,9 @@ async fn main() -> anyhow::Result<()> {
     let mut block_1 = NcBlock::new(
         false,
         vec![1, 1],
-        4,
+        5,
         true,
-        None,
+        Some(1),
         "my-block-01",
         None,
         true,
@@ -229,9 +246,9 @@ async fn main() -> anyhow::Result<()> {
     );
     let obj_2 = NcObject::new(
         vec![1],
-        5,
+        6,
         true,
-        Some(1),
+        Some(5),
         "my-nested-block-obj",
         None,
         None,

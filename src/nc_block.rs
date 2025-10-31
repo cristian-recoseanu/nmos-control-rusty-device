@@ -1,6 +1,7 @@
 use crate::data_types::{
-    ElementId, IdArgs, IdArgsValue, NcBlockMemberDescriptor, NcMethodStatus, NcPropertyChangeType,
-    PropertyChangedEvent, PropertyChangedEventData,
+    IdArgs, IdArgsValue, NcBlockMemberDescriptor, NcClassDescriptor, NcElementId,
+    NcMethodDescriptor, NcMethodStatus, NcParameterDescriptor, NcPropertyChangeType,
+    NcPropertyDescriptor, PropertyChangedEvent, PropertyChangedEventData,
 };
 use crate::nc_object::{NcMember, NcObject};
 use itertools::Itertools;
@@ -79,7 +80,7 @@ impl NcMember for NcBlock {
             match id_args_value.id.level {
                 2 => (
                     Some("Could not find the property".to_string()),
-                    NcMethodStatus::BadOid,
+                    NcMethodStatus::PropertyNotImplemented,
                 ),
                 _ => self.base.set_property(oid, id_args_value),
             }
@@ -93,7 +94,7 @@ impl NcMember for NcBlock {
     fn invoke_method(
         &self,
         oid: u64,
-        method_id: ElementId,
+        method_id: NcElementId,
         args: Value,
     ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         if oid == self.base.oid {
@@ -129,6 +130,157 @@ impl NcMember for NcBlock {
                 NcMethodStatus::BadOid,
             )
         }
+    }
+}
+
+impl NcBlock {
+    pub fn get_class_descriptor(include_inherited: bool) -> NcClassDescriptor {
+        let mut descriptor = NcClassDescriptor {
+            base: crate::data_types::NcDescriptor { description: Some("NcBlock class descriptor".to_string()) },
+            class_id: vec![1, 1],
+            name: "NcBlock".to_string(),
+            fixed_role: None,
+            properties: vec![
+                NcPropertyDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("TRUE if block is functional".to_string()) },
+                    id: NcElementId { level: 2, index: 1 },
+                    name: "enabled".to_string(),
+                    type_name: Some("NcBoolean".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: false,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+                NcPropertyDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("Descriptors of this block's members".to_string()) },
+                    id: NcElementId { level: 2, index: 2 },
+                    name: "members".to_string(),
+                    type_name: Some("NcBlockMemberDescriptor".to_string()),
+                    is_read_only: true,
+                    is_nullable: false,
+                    is_sequence: true,
+                    is_deprecated: false,
+                    constraints: None,
+                },
+            ],
+            methods: vec![
+                NcMethodDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("Gets descriptors of members of the block".to_string()) },
+                    id: NcElementId { level: 2, index: 1 },
+                    name: "GetMemberDescriptors".to_string(),
+                    result_datatype: "NcMethodResultBlockMemberDescriptors".to_string(),
+                    parameters: vec![NcParameterDescriptor {
+                        base: crate::data_types::NcDescriptor { description: Some("If recurse is set to true, nested members can be retrieved".to_string()) },
+                        name: "recurse".to_string(),
+                        type_name: Some("NcBoolean".to_string()),
+                        is_nullable: false,
+                        is_sequence: false,
+                        constraints: None,
+                    }],
+                    is_deprecated: false,
+                },
+                NcMethodDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("Finds member(s) by path".to_string()) },
+                    id: NcElementId { level: 2, index: 2 },
+                    name: "FindMembersByPath".to_string(),
+                    result_datatype: "NcMethodResultBlockMemberDescriptors".to_string(),
+                    parameters: vec![NcParameterDescriptor {
+                        base: crate::data_types::NcDescriptor { description: Some("Relative path to search for (MUST not include the role of the block targeted by oid)".to_string()) },
+                        name: "path".to_string(),
+                        type_name: Some("NcRolePath".to_string()),
+                        is_nullable: false,
+                        is_sequence: false,
+                        constraints: None,
+                    }],
+                    is_deprecated: false,
+                },
+                NcMethodDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("Finds members with given role name or fragment".to_string()) },
+                    id: NcElementId { level: 2, index: 3 },
+                    name: "FindMembersByRole".to_string(),
+                    result_datatype: "NcMethodResultBlockMemberDescriptors".to_string(),
+                    parameters: vec![
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("Role text to search for".to_string()) },
+                            name: "role".to_string(),
+                            type_name: Some("NcString".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("Signals if the comparison should be case sensitive".to_string()) },
+                            name: "caseSensitive".to_string(),
+                            type_name: Some("NcBoolean".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("TRUE to only return exact matches".to_string()) },
+                            name: "matchWholeString".to_string(),
+                            type_name: Some("NcBoolean".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("TRUE to search nested blocks".to_string()) },
+                            name: "recurse".to_string(),
+                            type_name: Some("NcBoolean".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                    ],
+                    is_deprecated: false,
+                },
+                NcMethodDescriptor {
+                    base: crate::data_types::NcDescriptor { description: Some("Finds members with given class id".to_string()) },
+                    id: NcElementId { level: 2, index: 4 },
+                    name: "FindMembersByClassId".to_string(),
+                    result_datatype: "NcMethodResultBlockMemberDescriptors".to_string(),
+                    parameters: vec![
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("Class id to search for".to_string()) },
+                            name: "classId".to_string(),
+                            type_name: Some("NcClassId".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("If TRUE it will also include derived class descriptors".to_string()) },
+                            name: "includeDerived".to_string(),
+                            type_name: Some("NcBoolean".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                        NcParameterDescriptor {
+                            base: crate::data_types::NcDescriptor { description: Some("TRUE to search nested blocks".to_string()) },
+                            name: "recurse".to_string(),
+                            type_name: Some("NcBoolean".to_string()),
+                            is_nullable: false,
+                            is_sequence: false,
+                            constraints: None,
+                        },
+                    ],
+                    is_deprecated: false,
+                },
+            ],
+            events: vec![],
+        };
+
+        if include_inherited {
+            let base_desc = crate::nc_object::NcObject::get_class_descriptor(true);
+            descriptor.properties.extend(base_desc.properties);
+            descriptor.methods.extend(base_desc.methods);
+            descriptor.events.extend(base_desc.events);
+        }
+
+        descriptor
     }
 }
 
@@ -173,7 +325,7 @@ impl NcBlock {
         let _ = self.base.notifier.send(PropertyChangedEvent::new(
             self.base.oid,
             PropertyChangedEventData {
-                property_id: ElementId { level: 2, index: 2 },
+                property_id: NcElementId { level: 2, index: 2 },
                 change_type: NcPropertyChangeType::ValueChanged,
                 value: json!(members_descriptors),
                 sequence_item_index: None,
@@ -215,6 +367,7 @@ impl NcBlock {
         self.members
             .iter()
             .map(|m| NcBlockMemberDescriptor {
+                base: crate::data_types::NcDescriptor { description: None },
                 role: m.get_role().to_owned(),
                 oid: m.get_oid(),
                 constant_oid: m.get_constant_oid(),
@@ -227,6 +380,7 @@ impl NcBlock {
 
     pub fn make_member_descriptor(m: &dyn NcMember, owner: u64) -> NcBlockMemberDescriptor {
         NcBlockMemberDescriptor {
+            base: crate::data_types::NcDescriptor { description: None },
             role: m.get_role().to_owned(),
             oid: m.get_oid(),
             constant_oid: m.get_constant_oid(),
@@ -418,17 +572,6 @@ impl NcBlock {
                     results.extend(block.find_members_by_class_id(args.clone()));
                 }
             }
-        }
-
-        if self.is_root && matches_class_id(&self.base.class_id) {
-            results.push(NcBlockMemberDescriptor {
-                role: self.base.role.clone(),
-                oid: self.base.oid,
-                constant_oid: self.base.constant_oid,
-                class_id: self.base.class_id.clone(),
-                user_label: self.base.user_label.clone().unwrap_or_default(),
-                owner: self.base.oid,
-            });
         }
 
         results
