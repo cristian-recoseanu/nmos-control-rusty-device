@@ -60,16 +60,15 @@ async fn process_command(msg: WsCommandMessage, state: Arc<AppState>) -> WsComma
             }
         };
 
-        let result = if error_message.is_some() {
-            ResponsePayload::Error(ResponseError {
-                base: ResponseBase { status },
-                error_message,
-            })
-        } else {
-            ResponsePayload::Result(ResponseResult {
-                base: ResponseBase { status },
+        let result = match status {
+            NcMethodStatus::Ok => ResponsePayload::Result(NcMethodResultPropertyValue {
+                base: NcMethodResult { status },
                 value,
-            })
+            }),
+            _ => ResponsePayload::Error(NcMethodResultError {
+                base: NcMethodResult { status },
+                error_message,
+            }),
         };
 
         responses.push(Response {
@@ -120,6 +119,24 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                 if let Ok(cmd) = serde_json::from_str::<WsCommandMessage>(&text)
                     && cmd.message_type == MESSAGE_TYPE_COMMAND
                 {
+                    // Validate handle
+                    let invalid_handle = cmd
+                        .commands
+                        .iter()
+                        .any(|c| c.handle == 0 || c.handle > 65535);
+                    if invalid_handle {
+                        let _ = tx_c.send(Message::Text(
+                            serde_json::to_string(&WsErrorMessage {
+                                message_type: MESSAGE_TYPE_ERROR,
+                                status: 400,
+                                error_message: "Invalid message".into(),
+                            })
+                            .unwrap()
+                            .into(),
+                        ));
+                        continue;
+                    }
+
                     let response = process_command(cmd, state_c.clone()).await;
                     if let Ok(txt) = serde_json::to_string(&response) {
                         let _ = tx_c.send(Message::Text(txt.into()));
@@ -134,6 +151,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, conn_id: Uuid) {
                     let mut conns = state_c.connections.write().await;
                     if let Some(c) = conns.get_mut(&conn_id) {
                         c.subscribed_oids = sub.subscriptions.iter().cloned().collect();
+                        println!(
+                            "Connection {} updated subscriptions: {:?}",
+                            conn_id, c.subscribed_oids
+                        );
                     }
                     let resp = WsSubscriptionResponseMessage {
                         message_type: MESSAGE_TYPE_SUBSCRIPTION_RESPONSE,
