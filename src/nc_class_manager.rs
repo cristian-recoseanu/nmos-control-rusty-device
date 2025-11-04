@@ -89,6 +89,151 @@ impl NcMember for NcClassManager {
     ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         if oid == self.base.get_oid() {
             match (method_id.level, method_id.index) {
+                (1, 3) => {
+                    match args.as_object() {
+                        Some(args_obj) => {
+                            let index = match args_obj.get("index").and_then(|v| v.as_u64()) {
+                                Some(idx) => idx as usize,
+                                None => {
+                                    return (
+                                        Some("Invalid index argument".to_string()),
+                                        None,
+                                        NcMethodStatus::ParameterError,
+                                    );
+                                }
+                            };
+
+                            match args_obj.get("id").and_then(|v| v.as_object()) {
+                                Some(id_obj) => {
+                                    let level = id_obj
+                                        .get("level")
+                                        .and_then(|v| v.as_u64())
+                                        .map(|v| v as u32);
+                                    let index_field = id_obj
+                                        .get("index")
+                                        .and_then(|v| v.as_u64())
+                                        .map(|v| v as u32);
+
+                                    match (level, index_field) {
+                                        (Some(3), Some(1)) => {
+                                            // Handle controlClasses (3p1)
+                                            let sequence: Vec<NcClassDescriptor> = self
+                                                .control_classes_register
+                                                .values()
+                                                .cloned()
+                                                .collect();
+
+                                            // Check if index is within bounds
+                                            if index >= sequence.len() {
+                                                return (
+                                                    Some(format!(
+                                                        "Index {} out of bounds for controlClasses sequence",
+                                                        index
+                                                    )),
+                                                    None,
+                                                    NcMethodStatus::IndexOutOfBounds,
+                                                );
+                                            }
+
+                                            (
+                                                None,
+                                                Some(json!(sequence[index].clone())),
+                                                NcMethodStatus::Ok,
+                                            )
+                                        }
+                                        (Some(3), Some(2)) => {
+                                            // Handle datatypes (3p2)
+                                            let sequence: Vec<NcAnyDatatypeDescriptor> = self
+                                                .data_types_register
+                                                .values()
+                                                .cloned()
+                                                .collect();
+
+                                            // Check if index is within bounds
+                                            if index >= sequence.len() {
+                                                return (
+                                                    Some(format!(
+                                                        "Index {} out of bounds for datatypes sequence",
+                                                        index
+                                                    )),
+                                                    None,
+                                                    NcMethodStatus::IndexOutOfBounds,
+                                                );
+                                            }
+
+                                            (
+                                                None,
+                                                Some(json!(sequence[index].clone())),
+                                                NcMethodStatus::Ok,
+                                            )
+                                        }
+                                        _ => (
+                                            Some("Invalid id argument".to_string()),
+                                            None,
+                                            NcMethodStatus::ParameterError,
+                                        ),
+                                    }
+                                }
+                                None => (
+                                    Some("Invalid id argument".to_string()),
+                                    None,
+                                    NcMethodStatus::ParameterError,
+                                ),
+                            }
+                        }
+                        None => (
+                            Some("Invalid arguments".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        ),
+                    }
+                }
+                (1, 7) => {
+                    match args.as_object() {
+                        Some(args_obj) => {
+                            match args_obj.get("id").and_then(|v| v.as_object()) {
+                                Some(id_obj) => {
+                                    let level = id_obj
+                                        .get("level")
+                                        .and_then(|v| v.as_u64())
+                                        .map(|v| v as u32);
+                                    let index = id_obj
+                                        .get("index")
+                                        .and_then(|v| v.as_u64())
+                                        .map(|v| v as u32);
+
+                                    match (level, index) {
+                                        (Some(3), Some(1)) => {
+                                            // Return length of controlClasses (3p1)
+                                            let length = self.control_classes_register.len() as u64;
+                                            (None, Some(json!(length)), NcMethodStatus::Ok)
+                                        }
+                                        (Some(3), Some(2)) => {
+                                            // Return length of datatypes (3p2)
+                                            let length = self.data_types_register.len() as u64;
+                                            (None, Some(json!(length)), NcMethodStatus::Ok)
+                                        }
+                                        _ => (
+                                            Some("Invalid id argument".to_string()),
+                                            None,
+                                            NcMethodStatus::ParameterError,
+                                        ),
+                                    }
+                                }
+                                None => (
+                                    Some("Invalid id argument".to_string()),
+                                    None,
+                                    NcMethodStatus::ParameterError,
+                                ),
+                            }
+                        }
+                        None => (
+                            Some("Invalid arguments".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        ),
+                    }
+                }
                 (3, 1) => {
                     let class_id = args.get("classId").and_then(|v| v.as_array()).map(|arr| {
                         arr.iter()

@@ -155,15 +155,197 @@ impl NcMember for NcObject {
     fn invoke_method(
         &self,
         _oid: u64,
-        _method_id: NcElementId,
-        _args: Value,
+        method_id: NcElementId,
+        args: Value,
     ) -> (Option<String>, Option<Value>, NcMethodStatus) {
-        //TODO: This is where we can add treatment for other methods in NcObject
-        (
-            Some("Method not yet implemented".to_string()),
-            None,
-            NcMethodStatus::MethodNotImplemented,
-        )
+        match (method_id.level, method_id.index) {
+            (1, 3) => {
+                // Parse the arguments
+                let args_obj = match args.as_object() {
+                    Some(obj) => obj,
+                    None => {
+                        return (
+                            Some("Invalid arguments".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        );
+                    }
+                };
+
+                // Get the property ID as an object with level and index
+                let id = match args_obj.get("id").and_then(|v| v.as_object()) {
+                    Some(id_obj) => {
+                        let level = id_obj
+                            .get("level")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let index = id_obj
+                            .get("index")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+
+                        if let (Some(level), Some(index)) = (level, index) {
+                            NcElementId { level, index }
+                        } else {
+                            return (
+                                Some("Invalid id argument".to_string()),
+                                None,
+                                NcMethodStatus::ParameterError,
+                            );
+                        }
+                    }
+                    None => {
+                        return (
+                            Some("Invalid id argument".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        );
+                    }
+                };
+
+                // Get the index
+                let index = match args_obj.get("index").and_then(|v| v.as_u64()) {
+                    Some(idx) => idx as usize,
+                    None => {
+                        return (
+                            Some("Invalid index argument".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        );
+                    }
+                };
+
+                // Directly handle the known sequence properties
+                match (id.level, id.index) {
+                    (1, 7) => {
+                        // touchpoints (1p7) sequence
+                        let sequence = &self.touchpoints;
+                        if index >= sequence.as_ref().map(|v| v.len()).unwrap_or(0) {
+                            return (
+                                Some(format!(
+                                    "Index {} out of bounds for touchpoints sequence",
+                                    index
+                                )),
+                                None,
+                                NcMethodStatus::IndexOutOfBounds,
+                            );
+                        }
+                        (
+                            None,
+                            sequence
+                                .as_ref()
+                                .and_then(|v| v.get(index))
+                                .map(|tp| json!(tp)),
+                            NcMethodStatus::Ok,
+                        )
+                    }
+                    (1, 8) => {
+                        // runtimePropertyConstraints (1p8) sequence
+                        let sequence = &self.runtime_property_constraints;
+                        if index >= sequence.as_ref().map(|v| v.len()).unwrap_or(0) {
+                            return (
+                                Some(format!(
+                                    "Index {} out of bounds for runtimePropertyConstraints sequence",
+                                    index
+                                )),
+                                None,
+                                NcMethodStatus::IndexOutOfBounds,
+                            );
+                        }
+                        (
+                            None,
+                            sequence
+                                .as_ref()
+                                .and_then(|v| v.get(index))
+                                .map(|c| json!(c)),
+                            NcMethodStatus::Ok,
+                        )
+                    }
+                    _ => (
+                        Some(format!(
+                            "Property {}.{} is not a sequence or not implemented",
+                            id.level, id.index
+                        )),
+                        None,
+                        NcMethodStatus::PropertyNotImplemented,
+                    ),
+                }
+            }
+            (1, 7) => {
+                // Parse the arguments
+                let args_obj = match args.as_object() {
+                    Some(obj) => obj,
+                    None => {
+                        return (
+                            Some("Invalid arguments".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        );
+                    }
+                };
+
+                // Get the property ID as an object with level and index
+                let id = match args_obj.get("id").and_then(|v| v.as_object()) {
+                    Some(id_obj) => {
+                        let level = id_obj
+                            .get("level")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let index = id_obj
+                            .get("index")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+
+                        if let (Some(level), Some(index)) = (level, index) {
+                            NcElementId { level, index }
+                        } else {
+                            return (
+                                Some("Invalid id argument".to_string()),
+                                None,
+                                NcMethodStatus::ParameterError,
+                            );
+                        }
+                    }
+                    None => {
+                        return (
+                            Some("Invalid id argument".to_string()),
+                            None,
+                            NcMethodStatus::ParameterError,
+                        );
+                    }
+                };
+
+                // Directly handle the known sequence properties
+                match (id.level, id.index) {
+                    (1, 7) => {
+                        // touchpoints (1p7) sequence
+                        let length = self.touchpoints.as_ref().map_or(0, |v| v.len()) as u64;
+                        (None, Some(json!(length)), NcMethodStatus::Ok)
+                    }
+                    (1, 8) => {
+                        // runtimePropertyConstraints (1p8) sequence
+                        let length = self
+                            .runtime_property_constraints
+                            .as_ref()
+                            .map_or(0, |v| v.len()) as u64;
+                        (None, Some(json!(length)), NcMethodStatus::Ok)
+                    }
+                    _ => (
+                        Some(format!(
+                            "Property {}.{} is not a sequence or not implemented",
+                            id.level, id.index
+                        )),
+                        None,
+                        NcMethodStatus::PropertyNotImplemented,
+                    ),
+                }
+            }
+            _ => (
+                Some("Method not implemented".to_string()),
+                None,
+                NcMethodStatus::MethodNotImplemented,
+            ),
+        }
     }
 }
 
