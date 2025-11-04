@@ -99,6 +99,127 @@ impl NcMember for NcBlock {
     ) -> (Option<String>, Option<Value>, NcMethodStatus) {
         if oid == self.base.oid {
             match (method_id.level, method_id.index) {
+                (1, 3) => {
+                    match args.as_object() {
+                        Some(args_obj) => {
+                            match args_obj.get("id") {
+                                Some(id_val) => {
+                                    if let Some(id_obj) = id_val.as_object() {
+                                        let level = id_obj
+                                            .get("level")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32);
+                                        let index = id_obj
+                                            .get("index")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32);
+
+                                        if let (Some(2), Some(2)) = (level, index) {
+                                            // Handle members property (2p2)
+                                            let index = match args_obj
+                                                .get("index")
+                                                .and_then(|v| v.as_u64())
+                                            {
+                                                Some(idx) => idx as usize,
+                                                None => {
+                                                    return (
+                                                        Some("Invalid index argument".to_string()),
+                                                        None,
+                                                        NcMethodStatus::ParameterError,
+                                                    );
+                                                }
+                                            };
+
+                                            let members = self.generate_members_descriptors();
+
+                                            // Check if index is within bounds
+                                            if index >= members.len() {
+                                                return (
+                                                    Some(format!(
+                                                        "Index {} out of bounds for sequence",
+                                                        index
+                                                    )),
+                                                    None,
+                                                    NcMethodStatus::IndexOutOfBounds,
+                                                );
+                                            }
+
+                                            if let Some(member) = members.get(index) {
+                                                return (
+                                                    None,
+                                                    Some(json!(member)),
+                                                    NcMethodStatus::Ok,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                None => {
+                                    return (
+                                        Some("Missing 'id' argument".to_string()),
+                                        None,
+                                        NcMethodStatus::ParameterError,
+                                    );
+                                }
+                            }
+                        }
+                        None => {
+                            return (
+                                Some("Invalid arguments".to_string()),
+                                None,
+                                NcMethodStatus::ParameterError,
+                            );
+                        }
+                    }
+                    // If not the members property, delegate to base class
+                    self.base.invoke_method(oid, method_id, args)
+                }
+                (1, 7) => {
+                    match args.as_object() {
+                        Some(args_obj) => {
+                            match args_obj.get("id") {
+                                Some(id_val) => {
+                                    if let Some(id_obj) = id_val.as_object() {
+                                        let level = id_obj
+                                            .get("level")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32);
+                                        let index = id_obj
+                                            .get("index")
+                                            .and_then(|v| v.as_u64())
+                                            .map(|v| v as u32);
+
+                                        if let (Some(2), Some(2)) = (level, index) {
+                                            // Handle members property (2p2)
+                                            let members = self.generate_members_descriptors();
+                                            return (
+                                                None,
+                                                Some(json!(members.len())),
+                                                NcMethodStatus::Ok,
+                                            );
+                                        }
+                                    }
+                                }
+                                None => {
+                                    return (
+                                        Some("Invalid id argument".to_string()),
+                                        None,
+                                        NcMethodStatus::ParameterError,
+                                    );
+                                }
+                            }
+                        }
+                        None => {
+                            return (
+                                Some("Invalid arguments".to_string()),
+                                None,
+                                NcMethodStatus::ParameterError,
+                            );
+                        }
+                    }
+                    // If not the members property, delegate to base class
+                    self.base.invoke_method(oid, method_id, args)
+                }
                 (2, 1) => (
                     None,
                     Some(json!(self.get_member_descriptors(args))),
