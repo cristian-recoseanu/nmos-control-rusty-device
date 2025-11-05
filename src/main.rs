@@ -23,6 +23,7 @@ mod nc_class_manager;
 mod nc_device_manager;
 mod nc_manager;
 mod nc_object;
+mod nc_worker;
 mod websocket;
 
 // Imports
@@ -35,6 +36,7 @@ use crate::{
     nc_class_manager::NcClassManager,
     nc_device_manager::NcDeviceManager,
     nc_object::NcObject,
+    nc_worker::NcWorker,
     websocket::{run_event_loop, websocket_handler},
 };
 
@@ -230,11 +232,25 @@ async fn main() -> anyhow::Result<()> {
     );
     root.add_member(Box::new(obj_1));
 
+    // Add NcWorker member
+    let worker_1 = NcWorker::new(
+        vec![1],
+        5,
+        true,
+        Some(1),
+        "my-worker-01",
+        Some("My worker 01"),
+        None,
+        None,
+        tx.clone(),
+    );
+    root.add_member(Box::new(worker_1));
+
     // Add NcBlock member
     let mut block_1 = NcBlock::new(
         false,
         vec![1, 1],
-        5,
+        6,
         true,
         Some(1),
         "my-block-01",
@@ -244,18 +260,32 @@ async fn main() -> anyhow::Result<()> {
         None,
         tx.clone(),
     );
+
     let obj_2 = NcObject::new(
         vec![1],
-        6,
+        7,
         true,
-        Some(5),
+        Some(6),
         "my-nested-block-obj",
         None,
         None,
         None,
         tx.clone(),
     );
+
+    let worker_2 = NcWorker::new(
+        vec![1],
+        8,
+        true,
+        Some(6),
+        "my-worker-02",
+        Some("My worker 02"),
+        None,
+        None,
+        tx.clone(),
+    );
     block_1.add_member(Box::new(obj_2));
+    block_1.add_member(Box::new(worker_2));
     root.add_member(Box::new(block_1));
 
     let app_state = Arc::new(AppState {
