@@ -65,7 +65,7 @@ jobs:
           --host 127.0.0.1 127.0.0.1 null null \
           --port 3000 3000 0 0 \
           --version v1.3 v1.0 v1.0 v1.0 \
-          --urlpath null /x-nmos/ncp/v1.0/connect null null \
+          --urlpath null /ws null null \
           --output ../test_results/is_12_01_results.json || true
 
     - name: Check IS-12 Test Results
