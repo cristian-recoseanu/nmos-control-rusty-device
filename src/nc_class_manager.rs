@@ -321,6 +321,7 @@ impl NcClassManager {
         let classes = vec![
             crate::nc_object::NcObject::get_class_descriptor(false),
             crate::nc_block::NcBlock::get_class_descriptor(false),
+            crate::nc_worker::NcWorker::get_class_descriptor(false),
             crate::nc_manager::NcManager::get_class_descriptor(false),
             crate::nc_device_manager::NcDeviceManager::get_class_descriptor(false),
             crate::nc_class_manager::NcClassManager::get_class_descriptor(false),
@@ -734,6 +735,7 @@ impl NcClassManager {
         match class_id {
             [1] => Some(crate::nc_object::NcObject::get_class_descriptor(true)),
             [1, 1] => Some(crate::nc_block::NcBlock::get_class_descriptor(true)),
+            [1, 2] => Some(crate::nc_worker::NcWorker::get_class_descriptor(true)),
             [1, 3] => Some(crate::nc_manager::NcManager::get_class_descriptor(true)),
             [1, 3, 1] => {
                 Some(crate::nc_device_manager::NcDeviceManager::get_class_descriptor(true))
