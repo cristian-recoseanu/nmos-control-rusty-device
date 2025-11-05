@@ -15,9 +15,6 @@ jobs:
       with:
         python-version: '3.9'
 
-    - name: Install jq
-      run: sudo apt-get update && sudo apt-get install -y jq netcat
-
     - name: Clone nmos-testing Repository
       run: git clone https://github.com/AMWA-TV/nmos-testing.git nmos-testing
 
