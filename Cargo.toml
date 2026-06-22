@@ -12,6 +12,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = { version = "0.3", features = ["sink"] }
 uuid = { version = "1.23", features = ["v4"] }
-itertools = "0.14"
+itertools = "0.15"
 anyhow = "1.0"
 gethostname = "1.1"
