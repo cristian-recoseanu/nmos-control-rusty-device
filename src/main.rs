@@ -67,7 +67,7 @@ impl AppState {
         })
         .unwrap();
 
-        for (_conn_id, conn) in conns.iter() {
+        for conn in conns.values() {
             if conn.subscribed_oids.contains(&event_data.oid) {
                 let _ = conn.sender.send(Message::Text(payload.clone().into()));
             }
